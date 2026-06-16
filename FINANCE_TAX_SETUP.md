@@ -51,30 +51,54 @@ Pencatatan bukti pembayaran pajak bulanan atau tahunan yang sudah disetor.
 
 ---
 
-## 2. Cara Mengunduh Laporan Keuangan (Export)
-Pada halaman **Finance & Tax** di dashboard Streamlit, Anda dapat mengunduh data dalam tiga format:
+## 2. Cara Mengunduh Laporan Keuangan & SPT Attachment Pack (Export)
+Pada halaman **Finance & Tax** di dashboard Streamlit, Anda dapat mengunduh data dalam berbagai format:
+
+### Ekspor Dashboard Umum:
 1. **Laporan PDF**: PDF Laba Rugi resmi beserta simulasi PPN dan checklist dokumen SPT.
 2. **Ringkasan TXT**: Ringkasan cepat metrik laba rugi dan disclaimer perpajakan.
 3. **CSV Bulanan**: Data rekap omzet, order, dan estimasi PPh Final 12 bulan dalam format tabular.
 
+### Ekspor SPT Attachment Pack (V5B):
+Di bagian bawah halaman Finance & Tax, terdapat panel khusus **SPT Attachment Pack** untuk mengunduh berkas pendukung simulasi SPT Tahunan:
+1. **Download SPT Summary TXT** (`spt_summary_2026.txt`): Ringkasan utuh laporan laba rugi ringkas, checklist kesiapan, dan daftar dokumen yang harus disiapkan.
+2. **Download Monthly Omzet CSV** (`monthly_omzet_2026.csv`): Perincian peredaran bruto dan estimasi PPh Final 0.5% bulanan untuk 12 bulan.
+3. **Download Expenses Recap CSV** (`expenses_recap_2026.csv`): Rincian biaya operasional bisnis parfum yang dikategorikan dan status tax deductible.
+4. **Download Tax Payments CSV** (`tax_payments_2026.csv`): Catatan setoran PPh Final / pajak bulanan yang sudah dibayarkan.
+5. **Download SPT Attachment PDF** (`spt_attachment_pack_2026.pdf`): PDF lampiran pendukung internal komprehensif berisi semua tabel (identitas, laba rugi ringkas, omzet bulanan, biaya operasional, setoran pajak, dan tax readiness checklist).
+
 ---
 
-## 3. Perintah Telegram Baru (V5A)
+## 3. Perintah Telegram Baru (V5A & V5B)
 Bot Telegram lokal Anda kini dilengkapi dengan perintah khusus keuangan dan pajak:
 * `/finance` — Mengirimkan metrik keuangan tahunan (Omzet bruto, EBT, total biaya operasional, dan EAT setelah estimasi pajak).
 * `/tax` — Menampilkan simulasi perpajakan tahunan (Status PKP, omzet bruto, estimasi nominal PPh Final UMKM, estimasi PPN kurang bayar, dan disclaimer).
 * `/tax_report` — Membuat dan mengirimkan file PDF laporan Keuangan & Tax Readiness langsung ke chat Telegram Anda.
-* `/spt_check` — Menampilkan checklist dokumen administrasi yang wajib disiapkan untuk pelaporan SPT Tahunan, lengkap dengan status data yang kurang.
+* `/spt_check` — Menampilkan status tab `expenses`, `tax_settings`, dan `tax_payments`, status setoran pajak terdaftar, serta checklist kelengkapan berkas untuk SPT.
+* `/spt_pack` — Membuat dan mengirimkan file PDF Paket Lampiran Pendukung SPT Usaha (`spt_attachment_pack_2026.pdf`) langsung ke Telegram Anda.
 
 ### NLP Keyword Routing (Ketik Beban Biasa)
 Bot otomatis mengenali kata kunci berikut dan mengarahkannya ke perintah terkait:
-* `laporan keuangan` / `laba rugi` $\rightarrow$ memicu `/finance`
-* `pajak` / `pph final` / `ppn` $\rightarrow$ memicu `/tax`
-* `spt` / `spt checklist` $\rightarrow$ memicu `/spt_check`
+* `laporan keuangan` / `laba rugi` → memicu `/finance`
+* `pajak` / `pph final` / `ppn` → memicu `/tax`
+* `spt` / `checklist pajak` → memicu `/spt_check`
+* `lampiran spt` / `paket spt` / `rekap spt` → memicu `/spt_pack`
 
 ---
 
-## 4. Langkah Validasi Wajib Pajak ke DJP / Konsultan
+## 4. Cara Pengisian & Sinkronisasi Tab Pajak / Expenses
+Jika Anda menggunakan Google Sheets sebagai data source utama dan service account memiliki hak akses Editor, Anda dapat menulis data langsung ke tab spreadsheet. Namun, jika service account berstatus Viewer:
+1. Unduh file template CSV lokal yang sudah disiapkan di folder `data/`:
+   * `data/expenses.csv`
+   * `data/tax_settings.csv`
+   * `data/tax_payments.csv`
+2. Buat tab dengan nama yang persis sama di Google Sheets Anda (`expenses`, `tax_settings`, `tax_payments`).
+3. Copy-paste isi file CSV template tersebut ke masing-masing tab Google Sheets Anda.
+4. Sesuaikan data dan setoran pajaknya secara manual di Google Sheets Anda.
+
+---
+
+## 5. Langkah Validasi Wajib Pajak ke DJP / Konsultan
 Sebelum melaporkan SPT tahunan menggunakan acuan simulasi ini, pastikan Anda:
 1. Melakukan rekonsiliasi bank untuk memastikan semua mutasi masuk telah dihitung sebagai omzet bruto penjualan.
 2. Memilah kembali biaya non-deductible (seperti keperluan pribadi pemilik) di tab `expenses` dengan menandai `tax_deductible` sebagai `false`.

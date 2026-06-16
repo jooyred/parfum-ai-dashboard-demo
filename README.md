@@ -1,6 +1,6 @@
-# AI Business Control Tower — Demo Bisnis Parfum (V5A)
+# AI Business Control Tower — Demo Bisnis Parfum (V5B)
 
-Aplikasi dashboard dan chatbot AI interaktif untuk mengontrol performa bisnis parfum, dirancang khusus untuk mempermudah owner memantau keuangan, stok, HPP, produksi, dan kampanye iklan. Versi V5A ini dilengkapi dengan modul laporan keuangan (Laba Rugi) dan tax readiness pack (simulasi PPh Final UMKM & PPN) di dashboard dan Telegram Bot.
+Aplikasi dashboard dan chatbot AI interaktif untuk mengontrol performa bisnis parfum, dirancang khusus untuk mempermudah owner memantau keuangan, stok, HPP, produksi, dan kampanye iklan. Versi V5B ini dilengkapi dengan modul laporan keuangan (Laba Rugi) dan **SPT Attachment Pack** (simulasi PPh Final UMKM & PPN) di dashboard dan Telegram Bot.
 
 ## 🔗 Live Demo
 Aplikasi ini telah dideploy secara online dan dapat diakses di:
@@ -88,7 +88,7 @@ Aplikasi ini dirancang menggunakan path relatif yang aman, sehingga siap dideplo
 
 ---
 
-## 🤖 Telegram Bot (V3B, V4A & V4B) - Pemantau Bisnis & Laporan Otomatis
+## 🤖 Telegram Bot (V3B, V4A, V4B & V5B) - Pemantau Bisnis & Laporan Otomatis
 
 Aplikasi ini dilengkapi dengan **Telegram Bot** agar owner dapat memantau performa bisnis, melihat keputusan harian (Control Room), mengunduh laporan PDF harian langsung dari Telegram secara real-time, serta menerima laporan otomatis terjadwal (Daily & Closing Report) dan alert operasional langsung di Telegram.
 
@@ -134,6 +134,25 @@ Versi **V5A** menambahkan modul laporan keuangan (Laba Rugi) dan simulasi kesiap
 5. **Ekspor Laporan Lengkap:** Mendukung download ringkasan teks (`.txt`), ringkasan bulanan pajak (`.csv`), dan PDF Laporan Laba Rugi & Tax Readiness (`.pdf`) secara instan.
 6. **Command Telegram Baru:** Perintah baru `/finance`, `/tax`, `/tax_report`, `/spt_check`, serta integrasi NLP keyword untuk memudahkan akses via Telegram.
 7. **Panduan Setup Lengkap:** Lihat panduan detail pengisian tab Google Sheets di berkas [FINANCE_TAX_SETUP.md](file:///C:/AI%20PROJECT/parfum_ai_dashboard_demo/FINANCE_TAX_SETUP.md).
+
+---
+
+## 💼 Fitur V5B - Finance & Tax Google Sheets Template + SPT Attachment Pack
+
+Versi **V5B** melengkapi modul keuangan dengan template tab terintegrasi dan paket dokumen lampiran pendukung SPT:
+1. **Template CSV & Google Sheets:** Menambahkan data dummy realistis (12 bulan tahun 2026, 30-60 baris) untuk tab `expenses`, `tax_settings`, dan `tax_payments`.
+2. **SPT Attachment Pack di Dashboard:** Section baru di menu Finance & Tax yang menyajikan rekap omzet bulanan/tahunan, laba rugi ringkas, biaya operasional, estimasi PPh Final, setoran pajak, dan checklist kesiapan SPT.
+3. **Ekspor Attachment Lengkap:** Menyediakan tombol download untuk:
+   * **SPT Summary TXT** (`spt_summary_2026.txt`)
+   * **Monthly Omzet CSV** (`monthly_omzet_2026.csv`)
+   * **Expenses Recap CSV** (`expenses_recap_2026.csv`)
+   * **Tax Payments CSV** (`tax_payments_2026.csv`)
+   * **SPT Attachment PDF** (`spt_attachment_pack_2026.pdf`)
+4. **Telegram command /spt_pack:** Perintah bot untuk membuat dan mengirim PDF Attachment Pack beserta disclaimer. Mengenali keyword natural seperti *"lampiran spt"*, *"paket spt"*, atau *"rekap spt"*.
+5. **Update /spt_check:** Menampilkan status tab `expenses`, `tax_settings`, dan `tax_payments`, status setoran pajak terdaftar, serta daftar dokumen yang kurang untuk SPT.
+6. **Validasi Data Health Check:** Validasi expenses nominal <= 0 (Warning), pembayaran pajak < 0 (Error), key tax_settings penting hilang (Warning), dan format kolom `tax_deductible` (Warning).
+7. **Script QA Otomatis:** File `scripts/qa_v5b_spt_pack.py` untuk menguji fungsionalitas SPT pack secara otomatis tanpa crash.
+8. **Panduan Setup Lengkap:** Selengkapnya di berkas [FINANCE_TAX_SETUP.md](file:///C:/AI%20PROJECT/parfum_ai_dashboard_demo/FINANCE_TAX_SETUP.md).
 
 ---
 

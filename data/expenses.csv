@@ -1,0 +1,74 @@
+date,category,description,amount,payment_method,vendor,tax_deductible,notes
+2026-01-02,Sewa,Sewa Ruko Tahunan 2026,36000000,Transfer,Ruko Agung Mandiri,false,Sewa ruko setahun penuh
+2026-01-15,Gaji,Pembayaran Gaji Karyawan - January 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-01-15,Internet,Langganan Internet Biznet - January 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-01-15,Operasional,Biaya Operasional Toko - January 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-01-15,Transport,Bensin & Tol Kirim Barang - January 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-01-15,Ads,Iklan Meta & TikTok Ads - January 2026,7500000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-01-15,Marketplace Fee,Marketplace Admin Fee - January 2026,3520000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-02-15,Gaji,Pembayaran Gaji Karyawan - February 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-02-15,Internet,Langganan Internet Biznet - February 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-02-15,Operasional,Biaya Operasional Toko - February 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-02-15,Transport,Bensin & Tol Kirim Barang - February 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-02-15,Ads,Iklan Meta & TikTok Ads - February 2026,9000000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-02-15,Marketplace Fee,Marketplace Admin Fee - February 2026,2880000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-03-15,Gaji,Pembayaran Gaji Karyawan - March 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-03-15,Internet,Langganan Internet Biznet - March 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-03-15,Operasional,Biaya Operasional Toko - March 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-03-15,Transport,Bensin & Tol Kirim Barang - March 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-03-15,Ads,Iklan Meta & TikTok Ads - March 2026,6000000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-03-15,Marketplace Fee,Marketplace Admin Fee - March 2026,3520000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-04-15,Gaji,Pembayaran Gaji Karyawan - April 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-04-15,Internet,Langganan Internet Biznet - April 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-04-15,Operasional,Biaya Operasional Toko - April 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-04-15,Transport,Bensin & Tol Kirim Barang - April 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-04-15,Ads,Iklan Meta & TikTok Ads - April 2026,7500000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-04-15,Marketplace Fee,Marketplace Admin Fee - April 2026,2880000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-05-15,Gaji,Pembayaran Gaji Karyawan - May 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-05-15,Internet,Langganan Internet Biznet - May 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-05-15,Operasional,Biaya Operasional Toko - May 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-05-15,Transport,Bensin & Tol Kirim Barang - May 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-05-15,Ads,Iklan Meta & TikTok Ads - May 2026,9000000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-05-15,Marketplace Fee,Marketplace Admin Fee - May 2026,3520000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-06-15,Gaji,Pembayaran Gaji Karyawan - June 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-06-15,Internet,Langganan Internet Biznet - June 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-06-15,Operasional,Biaya Operasional Toko - June 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-06-15,Transport,Bensin & Tol Kirim Barang - June 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-06-15,Ads,Iklan Meta & TikTok Ads - June 2026,6000000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-06-15,Marketplace Fee,Marketplace Admin Fee - June 2026,2880000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-07-15,Gaji,Pembayaran Gaji Karyawan - July 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-07-15,Internet,Langganan Internet Biznet - July 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-07-15,Operasional,Biaya Operasional Toko - July 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-07-15,Transport,Bensin & Tol Kirim Barang - July 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-07-15,Ads,Iklan Meta & TikTok Ads - July 2026,7500000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-07-15,Marketplace Fee,Marketplace Admin Fee - July 2026,3520000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-08-15,Gaji,Pembayaran Gaji Karyawan - August 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-08-15,Internet,Langganan Internet Biznet - August 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-08-15,Operasional,Biaya Operasional Toko - August 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-08-15,Transport,Bensin & Tol Kirim Barang - August 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-08-15,Ads,Iklan Meta & TikTok Ads - August 2026,9000000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-08-15,Marketplace Fee,Marketplace Admin Fee - August 2026,2880000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-09-15,Gaji,Pembayaran Gaji Karyawan - September 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-09-15,Internet,Langganan Internet Biznet - September 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-09-15,Operasional,Biaya Operasional Toko - September 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-09-15,Transport,Bensin & Tol Kirim Barang - September 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-09-15,Ads,Iklan Meta & TikTok Ads - September 2026,6000000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-09-15,Marketplace Fee,Marketplace Admin Fee - September 2026,3520000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-10-15,Gaji,Pembayaran Gaji Karyawan - October 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-10-15,Internet,Langganan Internet Biznet - October 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-10-15,Operasional,Biaya Operasional Toko - October 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-10-15,Transport,Bensin & Tol Kirim Barang - October 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-10-15,Ads,Iklan Meta & TikTok Ads - October 2026,7500000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-10-15,Marketplace Fee,Marketplace Admin Fee - October 2026,2880000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-11-15,Gaji,Pembayaran Gaji Karyawan - November 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-11-15,Internet,Langganan Internet Biznet - November 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-11-15,Operasional,Biaya Operasional Toko - November 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-11-15,Transport,Bensin & Tol Kirim Barang - November 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-11-15,Ads,Iklan Meta & TikTok Ads - November 2026,9000000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-11-15,Marketplace Fee,Marketplace Admin Fee - November 2026,3520000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform
+2026-12-15,Gaji,Pembayaran Gaji Karyawan - December 2026,8500000,Transfer,Staff Parfum,false,Gaji bulanan 2 staff
+2026-12-15,Internet,Langganan Internet Biznet - December 2026,550000,Auto-debit,Biznet Networks,true,Wifi High-speed
+2026-12-15,Operasional,Biaya Operasional Toko - December 2026,1200000,Kas Kecil,Toko ATK & Kelontong,true,Kebutuhan harian operasional
+2026-12-15,Transport,Bensin & Tol Kirim Barang - December 2026,800000,Kas Kecil,Pertamina,true,Operasional delivery
+2026-12-15,Ads,Iklan Meta & TikTok Ads - December 2026,6000000,Credit Card,Meta & Bytedance,true,Iklan bulanan
+2026-12-15,Marketplace Fee,Marketplace Admin Fee - December 2026,2880000,Dipotong Sistem,Shopee & Tokopedia,true,Biaya admin platform

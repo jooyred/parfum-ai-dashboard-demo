@@ -1,0 +1,9 @@
+key,value,notes
+business_entity,orang_pribadi_umkm,Jenis Wajib Pajak: orang_pribadi_umkm / badan_umkm / orang_pribadi_umum / badan_umum
+is_pkp,false,Status PKP: true / false
+use_pph_final_umkm,true,Menggunakan PPh Final UMKM 0.5% (PP 55/2022)
+pph_final_rate,0.005,Tarif PPh Final UMKM 0.5%
+annual_omzet_threshold,4800000000,Batas omzet PKP Rp 4.8 Miliar per tahun
+ppn_rate,0.12,Tarif PPN yang berlaku
+tax_year,2026,Tahun Pajak Laporan
+disclaimer,Estimasi pajak bersifat simulasi internal. Validasi final tetap perlu dilakukan dengan konsultan pajak atau DJP.,Disclaimer perpajakan

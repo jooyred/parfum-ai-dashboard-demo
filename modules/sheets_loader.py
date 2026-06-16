@@ -92,19 +92,34 @@ def normalize_google_sheet_data(data: dict) -> dict:
         "tax_payments": ["amount"]
     }
     
+    import os
+    from pathlib import Path
+    local_data_dir = Path(__file__).resolve().parent.parent / "data"
+    
     for tab, df in data.items():
         if df is None or df.empty:
-            if tab == "tax_settings":
-                df = pd.DataFrame([
-                    {"key": "business_entity", "value": "orang_pribadi_umkm", "notes": ""},
-                    {"key": "is_pkp", "value": "false", "notes": ""},
-                    {"key": "pph_final_rate", "value": "0.005", "notes": ""},
-                    {"key": "annual_omzet_threshold", "value": "4800000000", "notes": ""},
-                    {"key": "ppn_rate", "value": "0.12", "notes": ""},
-                    {"key": "use_pph_final_umkm", "value": "true", "notes": ""}
-                ])
+            local_file = local_data_dir / f"{tab}.csv" if tab != "bom_hpp" else local_data_dir / "bom_hpp.csv"
+            if local_file.exists():
+                try:
+                    if tab in ["sales", "expenses", "tax_payments"]:
+                        df = pd.read_csv(local_file, parse_dates=["date"])
+                    else:
+                        df = pd.read_csv(local_file)
+                except Exception:
+                    df = pd.DataFrame(columns=required_cols[tab])
             else:
-                df = pd.DataFrame(columns=required_cols[tab])
+                if tab == "tax_settings":
+                    df = pd.DataFrame([
+                        {"key": "business_entity", "value": "orang_pribadi_umkm", "notes": ""},
+                        {"key": "is_pkp", "value": "false", "notes": ""},
+                        {"key": "pph_final_rate", "value": "0.005", "notes": ""},
+                        {"key": "annual_omzet_threshold", "value": "4800000000", "notes": ""},
+                        {"key": "ppn_rate", "value": "0.12", "notes": ""},
+                        {"key": "use_pph_final_umkm", "value": "true", "notes": ""},
+                        {"key": "disclaimer", "value": "Estimasi pajak bersifat simulasi internal", "notes": ""}
+                    ])
+                else:
+                    df = pd.DataFrame(columns=required_cols[tab])
             
         # Ensure all columns are present (fill with defaults if missing)
         for col in required_cols[tab]:
@@ -114,7 +129,6 @@ def normalize_google_sheet_data(data: dict) -> dict:
         # Parse dates in date-carrying tabs
         if tab == "sales":
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
-            # Handle invalid or missing dates
             if df["date"].isnull().any():
                 df["date"] = df["date"].ffill().bfill().fillna(pd.Timestamp.today())
         elif tab in ["expenses", "tax_payments"]:

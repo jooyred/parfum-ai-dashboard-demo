@@ -637,6 +637,7 @@ async def tax_report_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def spt_check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /spt_check command."""
     try:
+        import pandas as pd
         data = load_bot_data()
         sales = data["sales"]
         sales["date"] = pd.to_datetime(sales["date"], errors="coerce")
@@ -647,32 +648,83 @@ async def spt_check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         checklist = build_tax_readiness_checklist(data, year)
         
-        lines = [f"📋 <b>Tax Readiness Checklist (Tahun {year})</b>\n"]
+        expenses_status = "Tersedia" if "expenses" in data and not data["expenses"].empty else "Kosong / Default"
+        settings_status = "Tersedia" if "tax_settings" in data and not data["tax_settings"].empty else "Kosong / Default"
+        payments_status = "Tersedia" if "tax_payments" in data and not data["tax_payments"].empty else "Kosong / Default"
+        
+        has_payments = "Ya" if "tax_payments" in data and not data["tax_payments"].empty and len(data["tax_payments"]) > 0 else "Tidak ada"
+        
+        lines = [
+            f"📋 <b>Tax Readiness Checklist (Tahun {year})</b>\n",
+            f"📊 <b>Status Tab Google Sheets/CSV:</b>",
+            f"• <code>expenses</code>: {expenses_status}",
+            f"• <code>tax_settings</code>: {settings_status}",
+            f"• <code>tax_payments</code>: {payments_status}\n",
+            f"💰 <b>Setoran Pajak Terdaftar:</b> {has_payments}\n",
+            "🔍 <b>Detail Kelengkapan:</b>"
+        ]
+        
         missing_count = 0
         warning_count = 0
+        missing_docs = []
         
         for item in checklist:
             emoji = "✅" if item["status"] == "Ready" else "⚠️" if item["status"] == "Warning" else "❌"
             if item["status"] == "Warning":
                 warning_count += 1
+                missing_docs.append(f"• <b>{item['item']}</b>: {item['description']}")
             elif item["status"] == "Missing":
                 missing_count += 1
-            lines.append(f"{emoji} <b>{item['item']}:</b> {item['status']}\n   <i>{item['description']}</i>\n")
+                missing_docs.append(f"• <b>{item['item']}</b>: {item['description']}")
+            lines.append(f"{emoji} <b>{item['item']}:</b> {item['status']}\n   <i>{item['description']}</i>")
             
-        # Add summary notes
-        lines.append("📝 <b>Catatan Data SPT Kurang:</b>")
-        if missing_count > 0 or warning_count > 0:
-            if missing_count > 0:
-                lines.append(f"- Terdeteksi <b>{missing_count} data penting hilang/kosong</b>. Lengkapi di Google Sheets.")
-            if warning_count > 0:
-                lines.append(f"- Terdeteksi <b>{warning_count} peringatan/belum lengkap</b>. Periksa kembali entri transaksi Anda.")
-        else:
-            lines.append("- Semua kelengkapan administrasi dasar siap (Ready).")
+        # Add general documents needed if warning/missing
+        missing_docs.append("• <b>Formulir SPT Tahunan 1770 / 1771</b> (sesuai status entitas bisnis).")
+        missing_docs.append("• <b>Daftar Harta & Utang Akhir Tahun</b> (sebagai lampiran wajib SPT Orang Pribadi / Badan).")
+        missing_docs.append("• <b>Rekapitulasi Omzet Bulanan</b> yang telah divalidasi ke mutasi rekening koran bank.")
+        missing_docs.append("• <b>Bukti Penerimaan Negara (BPN)</b> untuk pembayaran PPh Final 0.5% setiap masa pajak.")
+        
+        lines.append("\n📝 <b>Catatan Dokumen yang Kurang / Perlu Disiapkan:</b>")
+        for doc_item in missing_docs:
+            lines.append(doc_item)
             
         text = "\n".join(lines)
         await update.message.reply_text(text, parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"❌ Gagal memuat checklist SPT: {e}")
+
+@check_permission
+async def spt_pack_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /spt_pack command."""
+    status_msg = await update.message.reply_text("⏳ <i>Sedang memproses dan membuat Paket Lampiran Pendukung SPT...</i>", parse_mode="HTML")
+    try:
+        import pandas as pd
+        data = load_bot_data()
+        sales = data["sales"]
+        sales["date"] = pd.to_datetime(sales["date"], errors="coerce")
+        if not sales.empty:
+            year = int(sales["date"].max().year)
+        else:
+            year = datetime.now().year
+            
+        from modules.pdf_report import generate_spt_attachment_pack_pdf
+        pdf_bytes = generate_spt_attachment_pack_pdf(data, year)
+        
+        # Kirim PDF sebagai dokumen
+        await update.message.reply_document(
+            document=io.BytesIO(pdf_bytes),
+            filename=f"spt_attachment_pack_{year}.pdf",
+            caption=f"💼 <b>Paket Lampiran Pendukung SPT Usaha - Tahun {year}</b>\n\n"
+                    f"⚠️ <i>Estimasi pajak bersifat simulasi internal. Validasi final tetap perlu dilakukan dengan konsultan pajak atau DJP.</i>",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Gagal membuat Paket Lampiran SPT: {e}")
+    finally:
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
 
 # Scheduler configuration commands
 @check_permission
@@ -912,6 +964,8 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await finance_command(update, context)
     elif any(k in text for k in ["pph final", "ppn", "pajak"]):
         await tax_command(update, context)
+    elif any(k in text for k in ["lampiran spt", "paket spt", "rekap spt"]):
+        await spt_pack_command(update, context)
     elif any(k in text for k in ["spt", "checklist pajak"]):
         await spt_check_command(update, context)
     elif any(k in text for k in ["profit", "omzet", "ringkasan", "summary"]):

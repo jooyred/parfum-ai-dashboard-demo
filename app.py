@@ -1226,6 +1226,57 @@ elif page == "Data Health Check":
                 "Recommendation": "Periksa input pendapatan atau spend iklan agar bernilai positif."
             })
 
+    # V5B: Additional checks for Finance & Tax tabs
+    if "expenses" in data and not data["expenses"].empty:
+        expenses_df = data["expenses"]
+        if "amount" in expenses_df.columns:
+            bad_exp_amt = len(expenses_df[expenses_df["amount"] <= 0])
+            if bad_exp_amt > 0:
+                warnings.append({
+                    "Severity": "🟡 Warning",
+                    "Area": "Finance & Tax (Expenses)",
+                    "Issue": f"Terdapat {bad_exp_amt} pencatatan biaya di tab expenses dengan nominal <= 0.",
+                    "Recommendation": "Periksa tab expenses dan pastikan seluruh pengeluaran bernilai positif."
+                })
+        if "tax_deductible" in expenses_df.columns:
+            invalid_deductible = expenses_df[
+                ~expenses_df["tax_deductible"].astype(str).str.lower().isin(["true", "false", "1", "0", "yes", "no", "ya", "tidak"]) & 
+                ~expenses_df["tax_deductible"].isnull()
+            ]
+            if not invalid_deductible.empty:
+                warnings.append({
+                    "Severity": "🟡 Warning",
+                    "Area": "Finance & Tax (Expenses)",
+                    "Issue": f"Terdapat {len(invalid_deductible)} baris di tab expenses dengan kolom tax_deductible tidak valid (bukan true/false/yes/no/ya/tidak).",
+                    "Recommendation": "Gunakan format boolean (TRUE/FALSE atau YA/TIDAK) pada kolom tax_deductible."
+                })
+
+    if "tax_payments" in data and not data["tax_payments"].empty:
+        payments_df = data["tax_payments"]
+        if "amount" in payments_df.columns:
+            bad_pay_amt = len(payments_df[payments_df["amount"] < 0])
+            if bad_pay_amt > 0:
+                errors.append({
+                    "Severity": "🔴 Error",
+                    "Area": "Finance & Tax (Tax Payments)",
+                    "Issue": f"Terdapat {bad_pay_amt} pembayaran pajak di tab tax_payments dengan nominal < 0.",
+                    "Recommendation": "Periksa tab tax_payments dan pastikan nilai setoran pajak tidak negatif."
+                })
+
+    if "tax_settings" in data and not data["tax_settings"].empty:
+        settings_df = data["tax_settings"]
+        if "key" in settings_df.columns:
+            existing_keys = set(settings_df["key"].astype(str).str.strip().tolist())
+            important_keys = ["business_entity", "is_pkp", "use_pph_final_umkm", "pph_final_rate", "annual_omzet_threshold", "ppn_rate", "tax_year"]
+            missing_important = [k for k in important_keys if k not in existing_keys]
+            if missing_important:
+                warnings.append({
+                    "Severity": "🟡 Warning",
+                    "Area": "Finance & Tax (Tax Settings)",
+                    "Issue": f"Pengaturan penting berikut hilang dari tax_settings: {', '.join(missing_important)}.",
+                    "Recommendation": "Tambahkan key tersebut ke tab tax_settings agar perhitungan pajak berjalan presisi."
+                })
+
     # Health Score computation
     total_errors = len(errors)
     total_warnings = len(warnings)
@@ -1535,6 +1586,187 @@ elif page == "Finance & Tax":
                 mime="text/plain",
                 use_container_width=True
             )
+
+    # V5B: SPT Attachment Pack Section
+    st.markdown("---")
+    st.subheader("💼 SPT Attachment Pack")
+    st.caption("Dokumen lampiran pendukung internal untuk kelengkapan administrasi perpajakan.")
+    
+    # Disclaimer
+    st.info(
+        "📝 **Disclaimer:** Estimasi pajak bersifat simulasi internal. Validasi final tetap perlu dilakukan dengan konsultan pajak atau DJP. "
+        "Seluruh dokumen di bawah ini merupakan lampiran pendukung internal / rekap pendukung simulasi."
+    )
+    
+    # Document checklist
+    missing_docs = []
+    for item in checklist:
+        if item["status"] in ["Warning", "Missing"]:
+            missing_docs.append(f"• **{item['item']}**: {item['description']}")
+    # Add general ones
+    missing_docs.append("• **Formulir SPT Tahunan 1770 / 1771** (sesuai status entitas bisnis).")
+    missing_docs.append("• **Daftar Harta & Utang Akhir Tahun** (sebagai lampiran wajib SPT Orang Pribadi / Badan).")
+    missing_docs.append("• **Rekapitulasi Omzet Bulanan** yang telah divalidasi ke mutasi rekening koran bank.")
+    missing_docs.append("• **Bukti Penerimaan Negara (BPN)** untuk pembayaran PPh Final 0.5% setiap masa pajak.")
+    
+    spt_tabs = st.tabs(["Ringkasan Laporan", "Rincian Omzet Bulanan", "Rekap Biaya Operasional", "Setoran Pajak", "Unduh Dokumen"])
+    
+    with spt_tabs[0]:
+        st.markdown("##### Ringkasan Laporan Laba Rugi & SPT")
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            st.markdown(f"**Jenis Entitas:** {selected_entity_label}")
+            st.markdown(f"**Status PKP:** {'Ya (PKP)' if selected_pkp else 'Tidak (Non-PKP)'}")
+            st.markdown(f"**Peredaran Bruto (Omzet Tahunan):** {rupiah(pl_report['gross_revenue'])}")
+            st.markdown(f"**Penjualan Bersih (Net Revenue):** {rupiah(pl_report['net_revenue'])}")
+        with col_s2:
+            st.markdown(f"**Laba Kotor (Gross Profit):** {rupiah(pl_report['gross_profit'])}")
+            st.markdown(f"**Laba Bersih Sebelum Pajak (EBT):** {rupiah(pl_report['net_profit_before_tax'])}")
+            st.markdown(f"**Estimasi PPh Final UMKM:** {rupiah(pl_report['estimated_tax'])}")
+            st.markdown(f"**Laba Bersih Setelah Pajak (EAT):** {rupiah(pl_report['net_profit_after_tax'])}")
+            
+    with spt_tabs[1]:
+        st.markdown("##### Rincian Peredaran Bruto Bulanan")
+        st.dataframe(monthly_display, hide_index=True, use_container_width=True)
+        
+    with spt_tabs[2]:
+        st.markdown("##### Rekapitulasi Biaya Operasional (Expenses)")
+        expenses = data_filtered.get("expenses")
+        if expenses is not None and not expenses.empty:
+            expenses_year = expenses[pd.to_datetime(expenses["date"], errors="coerce").dt.year == selected_year]
+        else:
+            expenses_year = pd.DataFrame()
+            
+        if not expenses_year.empty:
+            exp_grp = expenses_year.groupby(["category", "tax_deductible"]).agg({"amount": "sum", "description": "count"}).reset_index()
+            exp_grp.columns = ["Kategori", "Tax Deductible", "Total Biaya", "Jumlah Transaksi"]
+            exp_grp["Total Biaya"] = exp_grp["Total Biaya"].apply(rupiah)
+            st.dataframe(exp_grp, hide_index=True, use_container_width=True)
+            
+            with st.expander("Lihat Rincian Transaksi Biaya"):
+                exp_detail = expenses_year.copy()
+                exp_detail["date"] = exp_detail["date"].dt.strftime("%Y-%m-%d")
+                exp_detail["amount"] = exp_detail["amount"].apply(rupiah)
+                st.dataframe(exp_detail, hide_index=True, use_container_width=True)
+        else:
+            st.info("Tidak ada data pengeluaran operasional.")
+            
+    with spt_tabs[3]:
+        st.markdown("##### Riwayat Pembayaran Pajak (Tax Payments)")
+        tax_payments = data_filtered.get("tax_payments")
+        if tax_payments is not None and not tax_payments.empty:
+            payments_year = tax_payments[pd.to_datetime(tax_payments["date"], errors="coerce").dt.year == selected_year]
+        else:
+            payments_year = pd.DataFrame()
+            
+        if not payments_year.empty:
+            pay_disp = payments_year.copy()
+            pay_disp["date"] = pay_disp["date"].dt.strftime("%Y-%m-%d")
+            pay_disp["amount"] = pay_disp["amount"].apply(rupiah)
+            pay_disp.columns = ["Tanggal", "Jenis Pajak", "Masa/Period", "Jumlah Setoran", "NTPN/Referensi", "Catatan"]
+            st.dataframe(pay_disp, hide_index=True, use_container_width=True)
+        else:
+            st.warning("Belum ada catatan setoran pajak yang diinput.")
+            
+    with spt_tabs[4]:
+        st.markdown("##### Unduh Paket Lampiran Pendukung SPT")
+        st.caption("Pilih format dokumen pendukung untuk diunduh secara lokal:")
+        
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            use_pph_final_str = "Ya (PPh Final UMKM 0.5%)" if use_pph_final else "Tidak (Tarif Umum)"
+            spt_txt_lines = [
+                "============================================================",
+                "PAKET LAMPIRAN PENDUKUNG SPT USAHA (SIMULASI INTERNAL)",
+                "============================================================",
+                f"Tahun Pajak: {selected_year}",
+                f"Jenis Entitas: {selected_entity_label}",
+                f"Status PKP: {'Ya (PKP)' if selected_pkp else 'Tidak (Non-PKP)'}",
+                f"Menggunakan PPh Final UMKM: {use_pph_final_str}",
+                "------------------------------------------------------------",
+                "A. REKAPITULASI LABA RUGI TAHUNAN:",
+                f"- Peredaran Bruto (Gross Revenue): {rupiah(pl_report['gross_revenue'])}",
+                f"- Diskon/Potongan Penjualan: - {rupiah(pl_report['discount'])}",
+                f"- Penjualan Bersih (Net Revenue): {rupiah(pl_report['net_revenue'])}",
+                f"- Harga Pokok Penjualan (HPP): - {rupiah(pl_report['hpp'])}",
+                f"- Laba Kotor (Gross Profit): {rupiah(pl_report['gross_profit'])}",
+                f"- Biaya Marketplace: - {rupiah(pl_report['marketplace_fee'])}",
+                f"- Biaya Iklan (Marketing): - {rupiah(pl_report['ad_cost'])}",
+                f"- Biaya Packing: - {rupiah(pl_report['packing_cost'])}",
+                f"- Biaya Operasional Lain (Expenses): - {rupiah(pl_report['operating_expenses'])}",
+                f"- Laba Bersih Sebelum Pajak (EBT): {rupiah(pl_report['net_profit_before_tax'])}",
+                f"- Estimasi PPh Terutang: - {rupiah(pl_report['estimated_tax'])}",
+                f"- Laba Bersih Setelah Pajak (EAT): {rupiah(pl_report['net_profit_after_tax'])}",
+                "------------------------------------------------------------",
+                "B. CHECKLIST DOKUMEN KESIAPAN PAJAK:",
+            ]
+            for item in checklist:
+                spt_txt_lines.append(f"- [{item['status']}] {item['item']}: {item['description']}")
+            spt_txt_lines.append("------------------------------------------------------------")
+            spt_txt_lines.append("C. CATATAN DOKUMEN YANG HARUS DISIAPKAN:")
+            for doc_item in missing_docs:
+                spt_txt_lines.append(doc_item.replace("• ", "").replace("**", ""))
+            spt_txt_lines.append("------------------------------------------------------------")
+            spt_txt_lines.append("DISCLAIMER:")
+            spt_txt_lines.append("Estimasi pajak bersifat simulasi internal. Validasi final tetap perlu dilakukan dengan konsultan pajak atau DJP.")
+            
+            spt_txt_content = "\n".join(spt_txt_lines)
+            st.download_button(
+                label="📄 Download SPT Summary TXT",
+                data=spt_txt_content.encode('utf-8'),
+                file_name=f"spt_summary_{selected_year}.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
+            
+            spt_monthly_csv = monthly_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📊 Download Monthly Omzet CSV",
+                data=spt_monthly_csv,
+                file_name=f"monthly_omzet_{selected_year}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            
+            spt_expenses_csv = (
+                expenses_year.to_csv(index=False).encode('utf-8') 
+                if not expenses_year.empty 
+                else pd.DataFrame(columns=["date", "category", "description", "amount", "payment_method", "vendor", "tax_deductible", "notes"]).to_csv(index=False).encode('utf-8')
+            )
+            st.download_button(
+                label="🛍️ Download Expenses Recap CSV",
+                data=spt_expenses_csv,
+                file_name=f"expenses_recap_{selected_year}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            
+        with col_d2:
+            spt_payments_csv = (
+                payments_year.to_csv(index=False).encode('utf-8')
+                if not payments_year.empty
+                else pd.DataFrame(columns=["date", "tax_type", "period", "amount", "payment_ref", "notes"]).to_csv(index=False).encode('utf-8')
+            )
+            st.download_button(
+                label="💳 Download Tax Payments CSV",
+                data=spt_payments_csv,
+                file_name=f"tax_payments_{selected_year}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            
+            try:
+                from modules.pdf_report import generate_spt_attachment_pack_pdf
+                spt_pdf_bytes = generate_spt_attachment_pack_pdf(data_filtered, selected_year)
+                st.download_button(
+                    label="📕 Download SPT Attachment PDF",
+                    data=spt_pdf_bytes,
+                    file_name=f"spt_attachment_pack_{selected_year}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Gagal generate SPT Attachment PDF: {e}")
 
 elif page == "Data Dummy":
     st.title("Data Dummy 📁")

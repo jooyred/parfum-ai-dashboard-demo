@@ -1,0 +1,6 @@
+date,tax_type,period,amount,payment_ref,notes
+2026-02-10,PPh Final UMKM,Masa Pajak Januari 2026,250000,NTPN-DEMO-001,Bukti setor dummy untuk demo
+2026-03-10,PPh Final UMKM,Masa Pajak Februari 2026,310000,NTPN-DEMO-002,Bukti setor dummy untuk demo
+2026-04-10,PPh Final UMKM,Masa Pajak Maret 2026,280000,NTPN-DEMO-003,Bukti setor dummy untuk demo
+2026-05-10,PPh Final UMKM,Masa Pajak April 2026,340000,NTPN-DEMO-004,Bukti setor dummy untuk demo
+2026-06-10,PPh Final UMKM,Masa Pajak Mei 2026,420000,NTPN-DEMO-005,Bukti setor dummy untuk demo
