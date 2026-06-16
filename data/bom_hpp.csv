@@ -1,0 +1,31 @@
+sku,component,unit,qty_usage,component_cost
+OCN-30,Bibit Ocean,ml,6,10800
+OCN-30,Alkohol 96%,ml,24,912
+OCN-30,Botol 30ml,pcs,1,4200
+OCN-30,Sprayer,pcs,1,1200
+OCN-30,Tutup,pcs,1,900
+OCN-30,Label,pcs,1,350
+OCN-30,Box 30ml,pcs,1,1500
+OCN-30,Packing,pcs,1,1500
+OCN-30,Tenaga Kerja,botol,1,2000
+OCN-30,Waste/Loss,estimasi,1,2138
+RGE-35,Bibit Rouge,ml,7,17500
+RGE-35,Alkohol 96%,ml,28,1064
+RGE-35,Botol 35ml,pcs,1,4800
+RGE-35,Sprayer,pcs,1,1200
+RGE-35,Tutup,pcs,1,900
+RGE-35,Label,pcs,1,350
+RGE-35,Box 30ml,pcs,1,1500
+RGE-35,Packing,pcs,1,1500
+RGE-35,Tenaga Kerja,botol,1,2200
+RGE-35,Waste/Loss,estimasi,1,986
+SAV-50,Bibit Sauvage,ml,10,22000
+SAV-50,Alkohol 96%,ml,40,1520
+SAV-50,Botol 50ml,pcs,1,5500
+SAV-50,Sprayer,pcs,1,1200
+SAV-50,Tutup,pcs,1,900
+SAV-50,Label,pcs,1,350
+SAV-50,Box 50ml,pcs,1,1800
+SAV-50,Packing,pcs,1,1500
+SAV-50,Tenaga Kerja,botol,1,2500
+SAV-50,Waste/Loss,estimasi,1,4730

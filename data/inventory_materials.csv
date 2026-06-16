@@ -1,0 +1,15 @@
+material,unit,stock,min_stock,unit_cost
+Bibit Ocean,ml,800,1500,1800
+Bibit Rouge,ml,650,1000,2500
+Bibit Vanilla,ml,1800,1200,1600
+Bibit Musk,ml,1400,1200,1700
+Bibit Sauvage,ml,900,1200,2200
+Alkohol 96%,liter,22,40,38000
+Botol 30ml,pcs,280,500,4200
+Botol 35ml,pcs,220,350,4800
+Botol 50ml,pcs,160,300,5500
+Sprayer,pcs,350,600,1200
+Tutup,pcs,520,600,900
+Box 30ml,pcs,410,500,1500
+Box 50ml,pcs,250,350,1800
+Label,pcs,1200,1000,350
