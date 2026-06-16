@@ -2,6 +2,13 @@
 
 Aplikasi dashboard dan chatbot AI interaktif untuk mengontrol performa bisnis parfum, dirancang khusus untuk mempermudah owner memantau keuangan, stok, HPP, produksi, dan kampanye iklan. Versi V2 ini hadir dengan peningkatan UI/UX premium ala SaaS, validasi upload data transaksi, dan ekspor laporan ke PDF.
 
+## 🔗 Live Demo
+Aplikasi ini telah dideploy secara online dan dapat diakses di:
+**[https://parfum-ai-dashboard-demo.streamlit.app/](https://parfum-ai-dashboard-demo.streamlit.app/)**
+
+> [!WARNING]
+> **Catatan Keamanan:** Demo ini menggunakan data dummy secara default. Jangan mengunggah data bisnis real atau sensitif Anda ke demo publik ini sebelum sistem login/autentikasi terintegrasi.
+
 ---
 
 ## 🛠️ Prasyarat (Prerequisites)
