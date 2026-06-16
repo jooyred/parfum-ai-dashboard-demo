@@ -6,3 +6,4 @@ __pycache__/
 .env
 credentials.json
 *.json
+tmp_qa_laporan_harian.pdf
