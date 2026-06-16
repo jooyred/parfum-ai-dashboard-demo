@@ -164,10 +164,48 @@ def reset_pdf_states():
     st.session_state["chatbot_pdf_ready"] = False
     st.session_state["chatbot_pdf_filename"] = ""
 
-# Load data and override if uploaded
-data = load_data()
-if st.session_state["uploaded_sales"] is not None:
-    data["sales"] = st.session_state["uploaded_sales"]
+# Google Sheets Data Source Session States
+if "data_source_mode" not in st.session_state:
+    st.session_state["data_source_mode"] = "dummy"
+
+if "google_sheets_data" not in st.session_state:
+    st.session_state["google_sheets_data"] = None
+
+if "active_sheet_id" not in st.session_state:
+    st.session_state["active_sheet_id"] = None
+
+# Helper to get active data based on source mode
+def get_active_data():
+    mode = st.session_state.get("data_source_mode", "dummy")
+    if mode == "google_sheets" and st.session_state.get("google_sheets_data") is not None:
+        return st.session_state["google_sheets_data"]
+    if st.session_state.get("uploaded_sales") is not None:
+        active = load_data()
+        active["sales"] = st.session_state["uploaded_sales"]
+        return active
+    return load_data()
+
+# Initialize dynamic sheets autoload
+if st.session_state.get("google_sheets_data") is None:
+    has_creds = "google_service_account" in st.secrets
+    sheet_id = st.secrets.get("GOOGLE_SHEET_ID")
+    if has_creds and sheet_id:
+        try:
+            from modules.sheets_loader import load_google_sheets_data, validate_sheet_tabs, normalize_google_sheet_data, get_sheet_id_from_url
+            actual_id = get_sheet_id_from_url(sheet_id)
+            creds_info = dict(st.secrets["google_service_account"])
+            raw_data = load_google_sheets_data(actual_id, creds_info)
+            is_valid, missing = validate_sheet_tabs(raw_data)
+            if is_valid:
+                st.session_state["google_sheets_data"] = normalize_google_sheet_data(raw_data)
+                st.session_state["data_source_mode"] = "google_sheets"
+                st.session_state["active_sheet_id"] = actual_id
+            else:
+                st.warning(f"⚠️ Google Sheets auto-load gagal! Tab wajib berikut tidak ditemukan: {', '.join(missing)}")
+        except Exception as e:
+            st.warning(f"⚠️ Google Sheets auto-load gagal! Terjadi error: {str(e)}")
+
+data = get_active_data()
 
 def render_metric(label, value, delta=None, status="good"):
     if status == "good":
@@ -234,18 +272,52 @@ with st.sidebar:
     st.markdown("---")
     
     # Data source status indicator in sidebar
-    if st.session_state["uploaded_sales"] is not None:
+    mode = st.session_state.get("data_source_mode", "dummy")
+    if mode == "google_sheets" and st.session_state.get("google_sheets_data") is not None:
+        st.sidebar.markdown(f"**Data Source:**<br/>{status_badge('Google Sheets')}", unsafe_allow_html=True)
+        st.sidebar.markdown("<br/>", unsafe_allow_html=True)
+        
+        # Refresh button
+        if st.sidebar.button("Refresh Google Sheets Data", use_container_width=True):
+            with st.spinner("Refreshing Google Sheets..."):
+                try:
+                    from modules.sheets_loader import load_google_sheets_data, validate_sheet_tabs, normalize_google_sheet_data, get_sheet_id_from_url
+                    actual_id = st.session_state.get("active_sheet_id") or get_sheet_id_from_url(st.secrets.get("GOOGLE_SHEET_ID", ""))
+                    if actual_id:
+                        creds_info = dict(st.secrets["google_service_account"])
+                        raw_data = load_google_sheets_data(actual_id, creds_info)
+                        is_valid, missing = validate_sheet_tabs(raw_data)
+                        if is_valid:
+                            st.session_state["google_sheets_data"] = normalize_google_sheet_data(raw_data)
+                            reset_pdf_states()
+                            st.sidebar.success("Data di-refresh!")
+                            st.rerun()
+                        else:
+                            st.sidebar.error(f"Refresh gagal! Tab hilang: {', '.join(missing)}")
+                    else:
+                        st.sidebar.error("Tidak ada Sheet ID aktif untuk di-refresh.")
+                except Exception as e:
+                    st.sidebar.error(f"Refresh gagal: {str(e)}")
+                    
+        if st.sidebar.button("Reset ke Dummy CSV", use_container_width=True, key="reset_from_sheets_sidebar"):
+            st.session_state["data_source_mode"] = "dummy"
+            st.session_state["google_sheets_data"] = None
+            reset_pdf_states()
+            st.rerun()
+            
+    elif mode == "uploaded_sales" or st.session_state["uploaded_sales"] is not None:
         st.sidebar.markdown(f"**Data Source:**<br/>{status_badge('Uploaded sales.csv')}", unsafe_allow_html=True)
         st.sidebar.markdown("<br/>", unsafe_allow_html=True)
-        if st.sidebar.button("Reset ke Data Dummy", use_container_width=True):
+        if st.sidebar.button("Reset ke Dummy CSV", use_container_width=True, key="reset_from_upload_sidebar"):
             st.session_state["uploaded_sales"] = None
+            st.session_state["data_source_mode"] = "dummy"
             reset_pdf_states()
             st.rerun()
     else:
-        st.sidebar.markdown(f"**Data Source:**<br/>{status_badge('Data Dummy')}", unsafe_allow_html=True)
+        st.sidebar.markdown(f"**Data Source:**<br/>{status_badge('Dummy CSV')}", unsafe_allow_html=True)
         
     st.markdown("---")
-    st.caption("Demo V2 • Data dummy / uploaded CSV")
+    st.caption("Demo V3A • Data dummy / Google Sheets")
 
 # Routing Pages
 if page == "Dashboard Overview":
@@ -645,6 +717,8 @@ elif page == "Setup Data":
                     df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
                 
                 st.session_state["uploaded_sales"] = df
+                st.session_state["data_source_mode"] = "uploaded_sales"
+                st.session_state["google_sheets_data"] = None  # Disable sheets when uploading CSV
                 reset_pdf_states()
                 st.success("🎉 File sales.csv berhasil diunggah! Seluruh halaman dashboard, chatbot, dan laporan saat ini menggunakan data penjualan Anda.")
                 st.rerun()
@@ -680,38 +754,113 @@ elif page == "Setup Data":
             st.metric("Total Profit", rupiah(total_profit))
 
     st.markdown("---")
-    st.markdown("### 3️⃣ Unduh Template CSV Bawaan")
+    st.markdown("### 3️⃣ Google Sheets Data Source 📊")
+    st.markdown("""
+    Anda dapat menghubungkan Control Tower ini langsung ke Google Sheets Anda agar data ter-update secara real-time.
+    Spreadsheet Anda harus memiliki nama tab wajib berikut:
+    `products`, `sales`, `inventory_products`, `inventory_materials`, `bom_hpp`, `ads`, `production_plan`
+    """)
+    
+    # Check if service account is configured
+    has_creds = "google_service_account" in st.secrets
+    if not has_creds:
+        st.warning("⚠️ **Service Account belum dikonfigurasi!** Untuk mengaktifkan Google Sheets, masukkan kredensial Service Account Anda ke dalam berkas `.streamlit/secrets.toml` (jika berjalan secara lokal) atau tambahkan ke Secrets di dashboard Streamlit Cloud.")
+    else:
+        st.success("✅ **Service Account siap digunakan.**")
+        
+        # Enter Sheet ID or URL
+        sheet_url_input = st.text_input(
+            "Masukkan URL atau ID Google Sheets", 
+            value=st.secrets.get("GOOGLE_SHEET_ID", ""),
+            placeholder="https://docs.google.com/spreadsheets/d/.../edit",
+            key="sheet_url_input_field"
+        )
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("Test Load & Aktifkan Google Sheets", use_container_width=True, key="btn_test_load_sheets"):
+                if not sheet_url_input:
+                    st.error("Masukkan URL atau ID Google Sheets terlebih dahulu.")
+                else:
+                    with st.spinner("Menghubungkan ke Google Sheets..."):
+                        try:
+                            from modules.sheets_loader import load_google_sheets_data, validate_sheet_tabs, normalize_google_sheet_data, get_sheet_id_from_url
+                            actual_id = get_sheet_id_from_url(sheet_url_input)
+                            creds_info = dict(st.secrets["google_service_account"])
+                            raw_data = load_google_sheets_data(actual_id, creds_info)
+                            is_valid, missing = validate_sheet_tabs(raw_data)
+                            
+                            if is_valid:
+                                st.session_state["google_sheets_data"] = normalize_google_sheet_data(raw_data)
+                                st.session_state["data_source_mode"] = "google_sheets"
+                                st.session_state["active_sheet_id"] = actual_id
+                                st.session_state["uploaded_sales"] = None  # Clear uploaded CSV if loading Sheets
+                                reset_pdf_states()  # Reset stale PDF bytes
+                                st.success("🎉 Google Sheets berhasil dimuat dan diaktifkan sebagai sumber data utama!")
+                                st.rerun()
+                            else:
+                                st.error(f"Tab wajib tidak lengkap! Tab berikut hilang atau kosong: {', '.join(missing)}")
+                        except Exception as e:
+                            st.error(f"Gagal memuat Google Sheets: {str(e)}")
+        with col_btn2:
+            if st.session_state["google_sheets_data"] is not None:
+                if st.button("Nonaktifkan Google Sheets", use_container_width=True, key="btn_disable_sheets"):
+                    st.session_state["data_source_mode"] = "dummy"
+                    st.session_state["google_sheets_data"] = None
+                    st.session_state["active_sheet_id"] = None
+                    reset_pdf_states()
+                    st.success("Google Sheets dinonaktifkan. Sistem kembali ke data dummy.")
+                    st.rerun()
+                    
+        # Preview data if Google Sheets is loaded
+        if st.session_state["google_sheets_data"] is not None:
+            st.markdown("#### Preview Data Google Sheets")
+            tabs_preview = st.tabs(list(st.session_state["google_sheets_data"].keys()))
+            for idx, tab_name in enumerate(st.session_state["google_sheets_data"].keys()):
+                with tabs_preview[idx]:
+                    df_preview = st.session_state["google_sheets_data"][tab_name]
+                    st.markdown(f"Menampilkan data dari tab `{tab_name}` ({len(df_preview)} baris):")
+                    preview_df = df_preview.head(10).copy()
+                    if "order_status" in preview_df.columns:
+                        preview_df["order_status"] = preview_df["order_status"].apply(text_status_emoji)
+                    if "status" in preview_df.columns:
+                        preview_df["status"] = preview_df["status"].apply(text_status_emoji)
+                    if "bottleneck" in preview_df.columns:
+                        preview_df["bottleneck"] = preview_df["bottleneck"].apply(text_status_emoji)
+                    st.dataframe(preview_df, hide_index=True, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("### 4️⃣ Unduh Template CSV Bawaan")
     st.caption("Gunakan file CSV demo bawaan ini sebagai acuan format pengisian data Anda.")
     
     c_d1, c_d2, c_d3, c_d4 = st.columns(4)
     with c_d1:
         with open(DATA_DIR / "products.csv", "rb") as f:
-            st.download_button("📥 Template products.csv", f, "products.csv", "text/csv", use_container_width=True)
+            st.download_button("📥 Template products.csv", f, "products.csv", "text/csv", use_container_width=True, key="dl_products_setup")
         with open(DATA_DIR / "inventory_products.csv", "rb") as f:
-            st.download_button("📥 Template inventory_products.csv", f, "inventory_products.csv", "text/csv", use_container_width=True)
+            st.download_button("📥 Template inventory_products.csv", f, "inventory_products.csv", "text/csv", use_container_width=True, key="dl_inv_p_setup")
             
     with c_d2:
         with open(DATA_DIR / "sales.csv", "rb") as f:
-            st.download_button("📥 Template sales.csv", f, "sales.csv", "text/csv", use_container_width=True)
+            st.download_button("📥 Template sales.csv", f, "sales.csv", "text/csv", use_container_width=True, key="dl_sales_setup")
         with open(DATA_DIR / "inventory_materials.csv", "rb") as f:
-            st.download_button("📥 Template inventory_materials.csv", f, "inventory_materials.csv", "text/csv", use_container_width=True)
+            st.download_button("📥 Template inventory_materials.csv", f, "inventory_materials.csv", "text/csv", use_container_width=True, key="dl_inv_m_setup")
             
     with c_d3:
         with open(DATA_DIR / "bom_hpp.csv", "rb") as f:
-            st.download_button("📥 Template bom_hpp.csv", f, "bom_hpp.csv", "text/csv", use_container_width=True)
+            st.download_button("📥 Template bom_hpp.csv", f, "bom_hpp.csv", "text/csv", use_container_width=True, key="dl_bom_setup")
         with open(DATA_DIR / "ads.csv", "rb") as f:
-            st.download_button("📥 Template ads.csv", f, "ads.csv", "text/csv", use_container_width=True)
+            st.download_button("📥 Template ads.csv", f, "ads.csv", "text/csv", use_container_width=True, key="dl_ads_setup")
             
     with c_d4:
         with open(DATA_DIR / "production_plan.csv", "rb") as f:
-            st.download_button("📥 Template production_plan.csv", f, "production_plan.csv", "text/csv", use_container_width=True)
+            st.download_button("📥 Template production_plan.csv", f, "production_plan.csv", "text/csv", use_container_width=True, key="dl_prod_setup")
             
     st.markdown("---")
-    st.markdown("### 4️⃣ Catatan Implementasi & Keterbatasan Demo")
+    st.markdown("### 5️⃣ Catatan Implementasi & Keterbatasan Demo")
     st.markdown("""
-    * Demo saat ini menerima upload **sales.csv** secara dinamis ke memory session berjalan.
-    * Data master lainnya seperti stok (`inventory_products.csv`, `inventory_materials.csv`), iklan (`ads.csv`), HPP/BOM (`bom_hpp.csv`), dan rencana produksi (`production_plan.csv`) masih menggunakan data dummy bawaan.
-    * Pada tahap implementasi ril, sistem dapat dikembangkan agar mendukung pengunggahan seluruh file master di atas, atau langsung dihubungkan dengan API database POS, ERP, atau dashboard marketplace Anda.
+    * Demo saat ini menerima upload **sales.csv** secara dinamis ke memory session berjalan atau integrasi ke **Google Sheets** menggunakan API Service Account.
+    * Setelah data real siap, modul berikutnya bisa dibuat agar semua file bisa upload atau disinkronkan langsung dengan database ERP Anda.
     """)
 
 elif page == "Data Dummy":
