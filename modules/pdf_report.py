@@ -338,3 +338,293 @@ def generate_daily_pdf_report(data, output_path=None) -> bytes:
         pdf_bytes = buffer.getvalue()
         buffer.close()
         return pdf_bytes
+
+def generate_finance_tax_pdf_report(data, year, output_path=None) -> bytes:
+    from modules.calculations import rupiah, pct
+    from modules.finance_tax import (
+        build_profit_loss_report, build_monthly_omzet_summary,
+        calculate_tax_estimate, build_tax_readiness_checklist,
+        generate_finance_tax_insights
+    )
+    
+    # Styling Setup
+    styles = getSampleStyleSheet()
+    primary_color = colors.HexColor('#083047')  # Dark Navy
+    secondary_color = colors.HexColor('#0d6570')  # Teal
+    text_color = colors.HexColor('#1e293b')  # Slate 800
+    bg_light = colors.HexColor('#f8fafc')  # Soft Gray
+    border_color = colors.HexColor('#e2e8f0')  # Border
+    
+    title_style = ParagraphStyle(
+        'FinanceDocTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=20,
+        leading=24,
+        textColor=primary_color,
+        alignment=TA_CENTER
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'FinanceDocSubtitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=11,
+        leading=15,
+        textColor=secondary_color,
+        alignment=TA_CENTER
+    )
+    
+    date_style = ParagraphStyle(
+        'FinanceDocDate',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor('#64748b'),
+        alignment=TA_CENTER
+    )
+    
+    h1_style = ParagraphStyle(
+        'FinanceSectionHeader',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=11,
+        leading=15,
+        textColor=primary_color,
+        spaceBefore=10,
+        spaceAfter=5,
+        keepWithNext=True
+    )
+    
+    body_style = ParagraphStyle(
+        'FinanceBodyText',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=12,
+        textColor=text_color
+    )
+    
+    table_header_style = ParagraphStyle(
+        'FinanceTableHeader',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=10,
+        textColor=colors.white
+    )
+    
+    table_cell_style = ParagraphStyle(
+        'FinanceTableCell',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=7.5,
+        leading=10,
+        textColor=text_color
+    )
+    
+    table_cell_bold = ParagraphStyle(
+        'FinanceTableCellBold',
+        parent=table_cell_style,
+        fontName='Helvetica-Bold'
+    )
+    
+    # 1. Disclaimer Callout Box
+    disclaimer_text = "<b>PENTING (DISCLAIMER):</b> Estimasi pajak bersifat simulasi internal. Laporan ini bukan dokumen resmi perpajakan dan tidak dapat digunakan sebagai SPT final yang sah. Validasi final tetap harus dilakukan dengan konsultan pajak bersertifikat atau Direktorat Jenderal Pajak (DJP)."
+    disclaimer_box = Table([[Paragraph(disclaimer_text, body_style)]], colWidths=[515])
+    disclaimer_box.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#fef2f2')),
+        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#ef4444')),
+        ('LINELEFT', (0,0), (0,-1), 3, colors.HexColor('#ef4444')),
+        ('PADDING', (0,0), (-1,-1), 6),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+    
+    # 2. Profit and Loss Table
+    pl = build_profit_loss_report(data, period="yearly", year=year)
+    laba_rugi_data = [
+        [Paragraph("<b>Item Laporan Keuangan (Laba Rugi)</b>", table_header_style), Paragraph("<b>Nilai (Rupiah)</b>", table_header_style)],
+        [Paragraph("Penjualan Bruto (Gross Revenue)", table_cell_style), Paragraph(rupiah(pl["gross_revenue"]), table_cell_bold if pl["gross_revenue"] > 0 else table_cell_style)],
+        [Paragraph("Diskon/Retur Penjualan", table_cell_style), Paragraph(f"- {rupiah(pl['discount'])}", table_cell_style)],
+        [Paragraph("<b>Penjualan Bersih (Net Revenue)</b>", table_cell_style), Paragraph(rupiah(pl["net_revenue"]), table_cell_bold)],
+        [Paragraph("Harga Pokok Penjualan (HPP)", table_cell_style), Paragraph(f"- {rupiah(pl['hpp'])}", table_cell_style)],
+        [Paragraph("<b>Laba Kotor (Gross Profit)</b>", table_cell_style), Paragraph(rupiah(pl["gross_profit"]), table_cell_bold)],
+        [Paragraph("Biaya Marketplace (Admin Fee)", table_cell_style), Paragraph(f"- {rupiah(pl['marketplace_fee'])}", table_cell_style)],
+        [Paragraph("Biaya Iklan (Marketing Cost)", table_cell_style), Paragraph(f"- {rupiah(pl['ad_cost'])}", table_cell_style)],
+        [Paragraph("Biaya Packing", table_cell_style), Paragraph(f"- {rupiah(pl['packing_cost'])}", table_cell_style)],
+        [Paragraph("Biaya Operasional Lain (Expenses)", table_cell_style), Paragraph(f"- {rupiah(pl['operating_expenses'])}", table_cell_style)],
+        [Paragraph("<b>Laba Bersih Sebelum Pajak (EBT)</b>", table_cell_style), Paragraph(rupiah(pl["net_profit_before_tax"]), table_cell_bold)],
+        [Paragraph("Estimasi Beban Pajak", table_cell_style), Paragraph(f"- {rupiah(pl['estimated_tax'])}", table_cell_style)],
+        [Paragraph("<b>Laba Bersih Setelah Pajak (EAT)</b>", table_cell_style), Paragraph(rupiah(pl["net_profit_after_tax"]), table_cell_bold)]
+    ]
+    pl_table = Table(laba_rugi_data, colWidths=[320, 195])
+    pl_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), primary_color),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, bg_light]),
+        ('BOX', (0,0), (-1,-1), 0.5, border_color),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, border_color),
+        ('PADDING', (0,0), (-1,-1), 4),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+    
+    # 3. Monthly Omzet & Tax Summary Table
+    monthly_df = build_monthly_omzet_summary(data, year)
+    monthly_data = [[
+        Paragraph("Bulan", table_header_style),
+        Paragraph("Omzet Bruto", table_header_style),
+        Paragraph("Net Revenue", table_header_style),
+        Paragraph("Order", table_header_style),
+        Paragraph("Est PPh Final", table_header_style),
+        Paragraph("Akumulasi", table_header_style),
+        Paragraph("Status", table_header_style)
+    ]]
+    for _, row in monthly_df.iterrows():
+        monthly_data.append([
+            Paragraph(row["month"], table_cell_style),
+            Paragraph(rupiah(row["gross_revenue"]), table_cell_style),
+            Paragraph(rupiah(row["net_revenue"]), table_cell_style),
+            Paragraph(str(row["order_count"]), table_cell_style),
+            Paragraph(rupiah(row["estimated_pph_final"]), table_cell_style),
+            Paragraph(rupiah(row["accumulated_gross_revenue"]), table_cell_style),
+            Paragraph(row["threshold_status"], table_cell_bold if row["threshold_status"] != "Aman" else table_cell_style)
+        ])
+    monthly_table = Table(monthly_data, colWidths=[70, 75, 75, 40, 75, 95, 85])
+    monthly_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), secondary_color),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, bg_light]),
+        ('BOX', (0,0), (-1,-1), 0.5, border_color),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, border_color),
+        ('PADDING', (0,0), (-1,-1), 4),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+    
+    # 4. Tax Readiness Checklist Table
+    checklist = build_tax_readiness_checklist(data, year)
+    chk_data = [[
+        Paragraph("<b>Langkah Kesiapan Pajak</b>", table_header_style),
+        Paragraph("<b>Status</b>", table_header_style),
+        Paragraph("<b>Keterangan</b>", table_header_style)
+    ]]
+    for item in checklist:
+        status_color = colors.HexColor('#065f46') if item["status"] == "Ready" else colors.HexColor('#92400e') if item["status"] == "Warning" else colors.HexColor('#991b1b')
+        status_para = Paragraph(f"<font color='{status_color}'><b>{item['status']}</b></font>", table_cell_style)
+        chk_data.append([
+            Paragraph(item["item"], table_cell_bold if item["status"] == "Ready" else table_cell_style),
+            status_para,
+            Paragraph(item["description"], table_cell_style)
+        ])
+    chk_table = Table(chk_data, colWidths=[160, 75, 280])
+    chk_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), primary_color),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, bg_light]),
+        ('BOX', (0,0), (-1,-1), 0.5, border_color),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, border_color),
+        ('PADDING', (0,0), (-1,-1), 4.5),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+    
+    # 5. PPN Simulation
+    tax_est = calculate_tax_estimate(data, year)
+    if tax_est["is_pkp"]:
+        ppn_text = (
+            f"<b>Status PKP: Aktif (Simulasi Pengusaha Kena Pajak)</b><br/>"
+            f"• PPN Keluaran (Output Tax): {rupiah(tax_est['ppn_keluaran'])}<br/>"
+            f"• PPN Masukan (Input Tax): {rupiah(tax_est['ppn_masukan'])} (dari pengeluaran deductible)<br/>"
+            f"• <b>Estimasi PPN Kurang/(Lebih) Bayar: {rupiah(tax_est['ppn_kurang_bayar'])}</b><br/>"
+            f"<i>Catatan: {tax_est['ppn_notes']}</i>"
+        )
+    else:
+        ppn_text = (
+            f"<b>Status PPN: WP Non-PKP (Tidak Memungut PPN)</b><br/>"
+            f"• PPN Keluaran: Rp 0 (Simulasi non-aktif)<br/>"
+            f"• PPN Masukan: Rp 0 (Tidak dapat dikreditkan)<br/>"
+            f"<i>Catatan: {tax_est['ppn_notes']}</i>"
+        )
+    ppn_box = Table([[Paragraph(ppn_text, body_style)]], colWidths=[515])
+    ppn_box.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), bg_light),
+        ('BOX', (0,0), (-1,-1), 0.5, border_color),
+        ('PADDING', (0,0), (-1,-1), 6),
+    ]))
+    
+    # 6. AI Insights Section
+    insights = generate_finance_tax_insights(data, year)
+    insights_content = []
+    for insight in insights:
+        insights_content.append(Paragraph(f"• {insight}", body_style))
+        insights_content.append(Spacer(1, 3))
+    if insights_content:
+        insights_content.pop()
+        
+    insights_box = Table([[insights_content]], colWidths=[515])
+    insights_box.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#e8f4f5')),
+        ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#0d6570')),
+        ('LINELEFT', (0,0), (0,-1), 3, colors.HexColor('#0d6570')),
+        ('PADDING', (0,0), (-1,-1), 8),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+    ]))
+    
+    # Building story
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        output_path if output_path else buffer,
+        pagesize=A4,
+        leftMargin=40,
+        rightMargin=40,
+        topMargin=35,
+        bottomMargin=35
+    )
+    
+    story = []
+    
+    # Title Block
+    story.append(Paragraph("Laporan Keuangan & Tax Readiness", title_style))
+    story.append(Spacer(1, 2))
+    story.append(Paragraph("AI Business Control Tower — Finance & Tax Pack", subtitle_style))
+    story.append(Spacer(1, 3))
+    story.append(Paragraph(f"Tahun Pajak / Periode Analisis: {year}", date_style))
+    story.append(Spacer(1, 8))
+    
+    # Divider
+    divider = Table([['']], colWidths=[515], rowHeights=[1.5])
+    divider.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), secondary_color),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0),
+    ]))
+    story.append(divider)
+    story.append(Spacer(1, 8))
+    
+    story.append(disclaimer_box)
+    story.append(Spacer(1, 8))
+    
+    # Sections
+    story.append(Paragraph("Laporan Laba Rugi Tahunan", h1_style))
+    story.append(pl_table)
+    story.append(Spacer(1, 8))
+    
+    story.append(Paragraph("Omzet Bulanan & Akumulasi Threshold", h1_style))
+    story.append(monthly_table)
+    story.append(Spacer(1, 8))
+    
+    story.append(Paragraph("Simulasi Pajak Pertambahan Nilai (PPN)", h1_style))
+    story.append(ppn_box)
+    story.append(Spacer(1, 8))
+    
+    story.append(Paragraph("Checklist Persiapan SPT Tahunan", h1_style))
+    story.append(chk_table)
+    story.append(Spacer(1, 8))
+    
+    story.append(Paragraph("Insight AI & Rencana Keuangan", h1_style))
+    story.append(insights_box)
+    
+    doc.build(story)
+    
+    if output_path:
+        return b""
+    else:
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        return pdf_bytes

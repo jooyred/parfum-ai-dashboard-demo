@@ -5,7 +5,7 @@ from pathlib import Path
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 def load_data():
-    return {
+    base_data = {
         "products": pd.read_csv(DATA_DIR / "products.csv"),
         "sales": pd.read_csv(DATA_DIR / "sales.csv", parse_dates=["date"]),
         "inventory_products": pd.read_csv(DATA_DIR / "inventory_products.csv"),
@@ -14,6 +14,34 @@ def load_data():
         "ads": pd.read_csv(DATA_DIR / "ads.csv"),
         "production_plan": pd.read_csv(DATA_DIR / "production_plan.csv"),
     }
+    
+    # Optional/New V5A files
+    expenses_file = DATA_DIR / "expenses.csv"
+    if expenses_file.exists():
+        base_data["expenses"] = pd.read_csv(expenses_file, parse_dates=["date"])
+    else:
+        base_data["expenses"] = pd.DataFrame(columns=["date", "category", "description", "amount", "payment_method", "vendor", "tax_deductible", "notes"])
+        
+    tax_settings_file = DATA_DIR / "tax_settings.csv"
+    if tax_settings_file.exists():
+        base_data["tax_settings"] = pd.read_csv(tax_settings_file)
+    else:
+        base_data["tax_settings"] = pd.DataFrame([
+            {"key": "business_entity", "value": "orang_pribadi_umkm", "notes": ""},
+            {"key": "is_pkp", "value": "false", "notes": ""},
+            {"key": "pph_final_rate", "value": "0.005", "notes": ""},
+            {"key": "annual_omzet_threshold", "value": "4800000000", "notes": ""},
+            {"key": "ppn_rate", "value": "0.12", "notes": ""},
+            {"key": "use_pph_final_umkm", "value": "true", "notes": ""}
+        ])
+        
+    tax_payments_file = DATA_DIR / "tax_payments.csv"
+    if tax_payments_file.exists():
+        base_data["tax_payments"] = pd.read_csv(tax_payments_file, parse_dates=["date"])
+    else:
+        base_data["tax_payments"] = pd.DataFrame(columns=["date", "tax_type", "period", "amount", "payment_ref", "notes"])
+        
+    return base_data
 
 def rupiah(value):
     try:

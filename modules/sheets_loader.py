@@ -23,8 +23,8 @@ def load_google_sheets_data(spreadsheet_id: str, credentials_info: dict) -> dict
     # Open the spreadsheet
     spreadsheet = client.open_by_key(spreadsheet_id)
     
-    # Required worksheets/tabs
-    tabs = ["products", "sales", "inventory_products", "inventory_materials", "bom_hpp", "ads", "production_plan"]
+    # Required and optional worksheets/tabs
+    tabs = ["products", "sales", "inventory_products", "inventory_materials", "bom_hpp", "ads", "production_plan", "expenses", "tax_settings", "tax_payments"]
     data = {}
     
     # Get all worksheets
@@ -73,7 +73,10 @@ def normalize_google_sheet_data(data: dict) -> dict:
         "inventory_materials": ["material", "unit", "stock", "min_stock", "unit_cost"],
         "bom_hpp": ["sku", "component", "unit", "qty_usage", "component_cost"],
         "ads": ["platform", "campaign", "spend", "revenue", "orders", "roas", "status"],
-        "production_plan": ["sku", "product", "demand_7d", "stock", "recommended_production", "bottleneck"]
+        "production_plan": ["sku", "product", "demand_7d", "stock", "recommended_production", "bottleneck"],
+        "expenses": ["date", "category", "description", "amount", "payment_method", "vendor", "tax_deductible", "notes"],
+        "tax_settings": ["key", "value", "notes"],
+        "tax_payments": ["date", "tax_type", "period", "amount", "payment_ref", "notes"]
     }
     
     numeric_cols = {
@@ -83,25 +86,40 @@ def normalize_google_sheet_data(data: dict) -> dict:
         "inventory_materials": ["stock", "min_stock", "unit_cost"],
         "bom_hpp": ["qty_usage", "component_cost"],
         "ads": ["spend", "revenue", "orders", "roas"],
-        "production_plan": ["demand_7d", "stock", "recommended_production"]
+        "production_plan": ["demand_7d", "stock", "recommended_production"],
+        "expenses": ["amount"],
+        "tax_settings": [],
+        "tax_payments": ["amount"]
     }
     
     for tab, df in data.items():
         if df is None or df.empty:
-            df = pd.DataFrame(columns=required_cols[tab])
+            if tab == "tax_settings":
+                df = pd.DataFrame([
+                    {"key": "business_entity", "value": "orang_pribadi_umkm", "notes": ""},
+                    {"key": "is_pkp", "value": "false", "notes": ""},
+                    {"key": "pph_final_rate", "value": "0.005", "notes": ""},
+                    {"key": "annual_omzet_threshold", "value": "4800000000", "notes": ""},
+                    {"key": "ppn_rate", "value": "0.12", "notes": ""},
+                    {"key": "use_pph_final_umkm", "value": "true", "notes": ""}
+                ])
+            else:
+                df = pd.DataFrame(columns=required_cols[tab])
             
         # Ensure all columns are present (fill with defaults if missing)
         for col in required_cols[tab]:
             if col not in df.columns:
                 df[col] = 0 if col in numeric_cols[tab] else ""
                 
-        # Parse dates in sales tab
+        # Parse dates in date-carrying tabs
         if tab == "sales":
             df["date"] = pd.to_datetime(df["date"], errors="coerce")
             # Handle invalid or missing dates
             if df["date"].isnull().any():
                 df["date"] = df["date"].ffill().bfill().fillna(pd.Timestamp.today())
-                
+        elif tab in ["expenses", "tax_payments"]:
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+            
         # Safe type conversion for numeric columns
         for col in numeric_cols[tab]:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)

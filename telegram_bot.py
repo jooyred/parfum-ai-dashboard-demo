@@ -25,7 +25,7 @@ def main():
         print("=" * 70)
         sys.exit(1)
         
-    print("Menginisialisasi Telegram Bot (V4B)...")
+    print("Menginisialisasi Telegram Bot (V5A)...")
     
     # Import handlers
     from modules.telegram_handlers import (
@@ -33,6 +33,7 @@ def main():
         alert_check_command, daily_on_command, daily_off_command, set_daily_time_command,
         closing_on_command, closing_off_command, set_closing_time_command,
         schedule_status_command, send_now_command,
+        finance_command, tax_command, tax_report_command, spt_check_command,
         top_products_command, stock_command, materials_command,
         production_command, ads_command, text_message_handler
     )
@@ -47,6 +48,10 @@ def main():
     application.add_handler(CommandHandler("owner", owner_command))
     application.add_handler(CommandHandler("report", report_command))
     application.add_handler(CommandHandler("alert_check", alert_check_command))
+    application.add_handler(CommandHandler("finance", finance_command))
+    application.add_handler(CommandHandler("tax", tax_command))
+    application.add_handler(CommandHandler("tax_report", tax_report_command))
+    application.add_handler(CommandHandler("spt_check", spt_check_command))
     
     # Register scheduling command handlers
     application.add_handler(CommandHandler("daily_on", daily_on_command))

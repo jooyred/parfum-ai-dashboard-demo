@@ -16,7 +16,10 @@ from modules.calculations import (
 from modules.sheets_loader import (
     load_google_sheets_data, validate_sheet_tabs, normalize_google_sheet_data, get_sheet_id_from_url
 )
-from modules.pdf_report import generate_daily_pdf_report
+from modules.pdf_report import generate_daily_pdf_report, generate_finance_tax_pdf_report
+from modules.finance_tax import (
+    build_profit_loss_report, calculate_tax_estimate, build_tax_readiness_checklist
+)
 
 SETTINGS_FILE = "runtime_bot_settings.json"
 
@@ -317,8 +320,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /start command."""
     user = update.effective_user.first_name if update.effective_user else "Owner"
     await update.message.reply_text(
-        f"🤖 <b>Bot AI Business Control Tower aktif (V4B).</b>\n\n"
-        f"Halo {user}! Saya siap memantau performa bisnis dan mengirim laporan berkala.\n\n"
+        f"🤖 <b>Bot AI Business Control Tower aktif (V5A).</b>\n\n"
+        f"Halo {user}! Saya siap memantau performa bisnis, keuangan, perpajakan, dan mengirim laporan berkala.\n\n"
         f"Ketik /help untuk daftar perintah lengkap.",
         parse_mode="HTML"
     )
@@ -327,8 +330,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /help command."""
     help_text = (
-        "🤖 <b>Daftar Perintah & Fitur Bot (V4B):</b>\n\n"
-        "<b>Menu Command:</b>\n"
+        "🤖 <b>Daftar Perintah & Fitur Bot (V5A):</b>\n\n"
+        "<b>Menu Keuangan & Pajak (Finance & Tax):</b>\n"
+        "/finance - 📊 Ringkasan laporan laba rugi tahun ini\n"
+        "/tax - 🧾 Simulasi PPh Final UMKM & readiness PPN\n"
+        "/tax_report - 📄 Download PDF Laporan Keuangan & Pajak\n"
+        "/spt_check - 📋 Checklist dokumen pelaporan SPT Tahunan\n\n"
+        "<b>Menu Command Inti:</b>\n"
         "/owner - 👑 Halaman keputusan harian owner (Control Room)\n"
         "/summary - 📊 Ringkasan finansial & action plan hari ini\n"
         "/report - 📄 Unduh Laporan PDF harian secara instan\n"
@@ -343,8 +351,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Menu Detail Lainnya:</b>\n"
         "/top_products, /stock, /materials, /production, /ads\n\n"
         "<b>NLP Command (Ketik Biasa):</b>\n"
-        "- <i>apa yang harus dilakukan hari ini</i>\n"
-        "- <i>iklan boncos</i> | <i>kirim pdf harian</i>"
+        "- <i>laporan keuangan tahun ini</i>\n"
+        "- <i>simulasi pajak bisnis</i> | <i>checklist spt</i>"
     )
     await update.message.reply_text(help_text, parse_mode="HTML")
 
@@ -534,6 +542,137 @@ async def alert_check_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text(text, parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"❌ Gagal melakukan pengecekan alert: {e}")
+
+@check_permission
+async def finance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /finance command."""
+    try:
+        data = load_bot_data()
+        sales = data["sales"]
+        sales["date"] = pd.to_datetime(sales["date"], errors="coerce")
+        if not sales.empty:
+            year = int(sales["date"].max().year)
+        else:
+            year = datetime.now().year
+            
+        pl = build_profit_loss_report(data, period="yearly", year=year)
+        text = (
+            f"📊 <b>Ringkasan Keuangan (Tahun Pajak {year})</b>\n\n"
+            f"💵 <b>Omzet Bruto Tahunan:</b> {rupiah(pl['gross_revenue'])}\n"
+            f"📈 <b>Laba Bersih Sebelum Pajak (EBT):</b> {rupiah(pl['net_profit_before_tax'])}\n"
+            f"🛍️ <b>Biaya Operasional (Expenses):</b> {rupiah(pl['operating_expenses'])}\n"
+            f"💰 <b>Estimasi Profit Bersih Setelah Pajak (EAT):</b> {rupiah(pl['net_profit_after_tax'])}\n\n"
+            f"💡 <i>Disclaimer: Data bersifat simulasi internal. Hubungi konsultan pajak/DJP untuk validasi resmi.</i>"
+        )
+        await update.message.reply_text(text, parse_mode="HTML")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Gagal memuat ringkasan keuangan: {e}")
+
+@check_permission
+async def tax_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /tax command."""
+    try:
+        data = load_bot_data()
+        sales = data["sales"]
+        sales["date"] = pd.to_datetime(sales["date"], errors="coerce")
+        if not sales.empty:
+            year = int(sales["date"].max().year)
+        else:
+            year = datetime.now().year
+            
+        tax_est = calculate_tax_estimate(data, year)
+        
+        pkp_status = "Ya (PKP)" if tax_est["is_pkp"] else "Tidak (Non-PKP)"
+        ppn_detail = ""
+        if tax_est["is_pkp"]:
+            ppn_detail = (
+                f"  - PPN Keluaran: {rupiah(tax_est['ppn_keluaran'])}\n"
+                f"  - PPN Masukan: {rupiah(tax_est['ppn_masukan'])}\n"
+                f"  - PPN Kurang Bayar: {rupiah(tax_est['ppn_kurang_bayar'])}\n"
+            )
+        else:
+            ppn_detail = "  - Status: Tidak memungut PPN (WP Non-PKP)\n"
+            
+        text = (
+            f"🧾 <b>Simulasi Pajak Bisnis (Tahun {year})</b>\n\n"
+            f"🏢 <b>Status PKP:</b> {pkp_status}\n"
+            f"💰 <b>Omzet Bruto Tahunan:</b> {rupiah(tax_est['annual_gross'])}\n"
+            f"💵 <b>Estimasi PPh Final UMKM:</b> {rupiah(tax_est['estimated_pph_final'])}\n\n"
+            f"⚖️ <b>Readiness PPN:</b>\n{ppn_detail}\n"
+            f"⚠️ <b>Disclaimer:</b> Estimasi pajak bersifat simulasi internal. Validasi final tetap perlu dilakukan dengan konsultan pajak atau DJP."
+        )
+        await update.message.reply_text(text, parse_mode="HTML")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Gagal memuat simulasi pajak: {e}")
+
+@check_permission
+async def tax_report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /tax_report command."""
+    status_msg = await update.message.reply_text("📄 Laporan Pajak & Keuangan sedang dibuat...")
+    try:
+        data = load_bot_data()
+        sales = data["sales"]
+        sales["date"] = pd.to_datetime(sales["date"], errors="coerce")
+        if not sales.empty:
+            year = int(sales["date"].max().year)
+        else:
+            year = datetime.now().year
+            
+        pdf_bytes = generate_finance_tax_pdf_report(data, year)
+        await update.message.reply_document(
+            document=io.BytesIO(pdf_bytes),
+            filename=f"laporan_keuangan_pajak_parfum_{year}.pdf",
+            caption=f"📄 <b>Laporan Keuangan & Tax Readiness - Tahun {year}</b>\n\n⚠️ <i>Simulasi internal. Validasi final dengan konsultan pajak/DJP.</i>",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Gagal membuat laporan keuangan/pajak: {e}")
+    finally:
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
+
+@check_permission
+async def spt_check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /spt_check command."""
+    try:
+        data = load_bot_data()
+        sales = data["sales"]
+        sales["date"] = pd.to_datetime(sales["date"], errors="coerce")
+        if not sales.empty:
+            year = int(sales["date"].max().year)
+        else:
+            year = datetime.now().year
+            
+        checklist = build_tax_readiness_checklist(data, year)
+        
+        lines = [f"📋 <b>Tax Readiness Checklist (Tahun {year})</b>\n"]
+        missing_count = 0
+        warning_count = 0
+        
+        for item in checklist:
+            emoji = "✅" if item["status"] == "Ready" else "⚠️" if item["status"] == "Warning" else "❌"
+            if item["status"] == "Warning":
+                warning_count += 1
+            elif item["status"] == "Missing":
+                missing_count += 1
+            lines.append(f"{emoji} <b>{item['item']}:</b> {item['status']}\n   <i>{item['description']}</i>\n")
+            
+        # Add summary notes
+        lines.append("📝 <b>Catatan Data SPT Kurang:</b>")
+        if missing_count > 0 or warning_count > 0:
+            if missing_count > 0:
+                lines.append(f"- Terdeteksi <b>{missing_count} data penting hilang/kosong</b>. Lengkapi di Google Sheets.")
+            if warning_count > 0:
+                lines.append(f"- Terdeteksi <b>{warning_count} peringatan/belum lengkap</b>. Periksa kembali entri transaksi Anda.")
+        else:
+            lines.append("- Semua kelengkapan administrasi dasar siap (Ready).")
+            
+        text = "\n".join(lines)
+        await update.message.reply_text(text, parse_mode="HTML")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Gagal memuat checklist SPT: {e}")
 
 # Scheduler configuration commands
 @check_permission
@@ -769,7 +908,13 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     text = update.message.text.lower().strip()
-    if any(k in text for k in ["profit", "omzet", "ringkasan", "summary"]):
+    if any(k in text for k in ["laporan keuangan", "laba rugi"]):
+        await finance_command(update, context)
+    elif any(k in text for k in ["pph final", "ppn", "pajak"]):
+        await tax_command(update, context)
+    elif any(k in text for k in ["spt", "checklist pajak"]):
+        await spt_check_command(update, context)
+    elif any(k in text for k in ["profit", "omzet", "ringkasan", "summary"]):
         await summary_command(update, context)
     elif any(k in text for k in ["laporan", "pdf", "report", "harian"]):
         await report_command(update, context)
@@ -789,9 +934,9 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(
             "🤖 Saya kurang memahami pesan tersebut.\n\n"
             "Gunakan perintah /help atau tanyakan hal seperti:\n"
-            "- <i>apa yang harus dilakukan hari ini</i>\n"
-            "- <i>profit hari ini</i>\n"
-            "- <i>stok kritis</i>\n"
-            "- <i>buat laporan harian</i>",
+            "- <i>laporan keuangan tahun ini</i>\n"
+            "- <i>simulasi pajak bisnis</i>\n"
+            "- <i>spt checklist</i>\n"
+            "- <i>apa yang harus dilakukan hari ini</i>",
             parse_mode="HTML"
         )

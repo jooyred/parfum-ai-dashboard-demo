@@ -275,6 +275,7 @@ with st.sidebar:
             "Stok, HPP & Produksi",
             "Chatbot AI Bisnis",
             "Laporan Harian",
+            "Finance & Tax",
             "Setup Data",
             "Data Health Check",
             "Data Dummy"
@@ -1076,6 +1077,27 @@ elif page == "Data Health Check":
         else:
             rows_checked += len(data[key])
 
+    # Check optional V5A tabs
+    optional_keys = ["expenses", "tax_payments", "tax_settings"]
+    for key in optional_keys:
+        if key not in data or data[key] is None or data[key].empty:
+            warnings.append({
+                "Severity": "🟡 Warning",
+                "Area": "Struktur Berkas (Opsional)",
+                "Issue": f"Tab opsional '{key}' tidak ditemukan atau kosong.",
+                "Recommendation": f"Buat tab '{key}' di Google Sheets/file lokal untuk mengaktifkan modul Finance & Tax lengkap."
+            })
+        elif key == "tax_settings" and len(data[key]) == 6 and "orang_pribadi_umkm" in data[key]["value"].values:
+            warnings.append({
+                "Severity": "🟡 Warning",
+                "Area": "Pengaturan Pajak (Opsional)",
+                "Issue": "Pengaturan pajak di tab 'tax_settings' menggunakan nilai default.",
+                "Recommendation": "Sesuaikan pengaturan entitas dan PKP Anda di tab 'tax_settings'."
+            })
+            rows_checked += len(data[key])
+        else:
+            rows_checked += len(data[key])
+
     # 2. Columns Check
     sales_cols = ["date", "platform", "order_id", "sku", "product", "qty", "price", "discount", "marketplace_fee", "packing_cost", "ad_cost_allocated", "hpp", "gross_revenue", "net_revenue", "net_profit", "net_margin", "order_status"]
     if "sales" in data and not data["sales"].empty:
@@ -1234,6 +1256,285 @@ elif page == "Data Health Check":
     else:
         issues_df = pd.DataFrame(issues_list)
         render_styled_table(issues_df)
+
+elif page == "Finance & Tax":
+    st.title("Finance & Tax Readiness 📊")
+    st.caption("Laporan keuangan dan simulasi pajak internal untuk membantu persiapan pencatatan usaha dan lampiran SPT.")
+    
+    # Disclaimer Box
+    st.error(
+        "⚠️ **Disclaimer:** Estimasi pajak bersifat simulasi internal. Laporan ini bukan dokumen resmi perpajakan "
+        "dan tidak dapat digunakan sebagai SPT final yang sah. Validasi final tetap perlu dilakukan dengan konsultan pajak atau DJP."
+    )
+    
+    # Check if optional tax/expenses tables exist or are empty (original loaded data)
+    missing_tabs = []
+    if "expenses" not in data or data["expenses"].empty:
+        missing_tabs.append("expenses")
+    if "tax_settings" not in data or data["tax_settings"].empty:
+        missing_tabs.append("tax_settings")
+    if "tax_payments" not in data or data["tax_payments"].empty:
+        missing_tabs.append("tax_payments")
+        
+    if missing_tabs:
+        st.warning(
+            f"ℹ️ **Informasi:** Tab opsional berikut belum terisi penuh atau belum dibuat di Google Sheets: **{', '.join(missing_tabs)}**. "
+            "Aplikasi menggunakan data default simulasi/kosong agar tidak crash. "
+            "Anda dapat membuat tab-tab ini di Google Sheets untuk mengaktifkan sinkronisasi riwayat pengeluaran & setoran pajak."
+        )
+
+    # Copy data to avoid mutating original
+    data_filtered = data.copy()
+    
+    from modules.finance_tax import (
+        parse_settings, build_profit_loss_report, build_monthly_omzet_summary,
+        calculate_tax_estimate, build_tax_readiness_checklist, generate_finance_tax_insights
+    )
+    
+    current_settings = parse_settings(data)
+    
+    # Filter
+    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+    with col_f1:
+        years_list = sorted(list(data["sales"]["date"].dt.year.dropna().unique()), reverse=True)
+        if not years_list:
+            years_list = [2026]
+        selected_year = st.selectbox("Tahun Pajak", years_list, index=0)
+        
+    with col_f2:
+        months_list = ["Semua Bulan", "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
+                       "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+        selected_month_str = st.selectbox("Bulan (Opsional)", months_list, index=0)
+        selected_month = None if selected_month_str == "Semua Bulan" else months_list.index(selected_month_str)
+        
+    with col_f3:
+        entity_opts = ["orang_pribadi_umkm", "badan_umkm", "orang_pribadi_umum", "badan_umum"]
+        entity_labels = {
+            "orang_pribadi_umkm": "Orang Pribadi (UMKM Final 0.5%)",
+            "badan_umkm": "Badan / PT / CV (UMKM Final 0.5%)",
+            "orang_pribadi_umum": "Orang Pribadi (Tarif Umum)",
+            "badan_umum": "Badan / PT / CV (Tarif Umum 22%)"
+        }
+        default_entity = current_settings.get("business_entity", "orang_pribadi_umkm")
+        if default_entity not in entity_opts:
+            default_entity = "orang_pribadi_umkm"
+        selected_entity_label = st.selectbox(
+            "Jenis Entitas Pajak", 
+            [entity_labels[opt] for opt in entity_opts], 
+            index=entity_opts.index(default_entity)
+        )
+        selected_entity = [k for k, v in entity_labels.items() if v == selected_entity_label][0]
+        
+    with col_f4:
+        default_pkp = current_settings.get("is_pkp", False)
+        pkp_opts = ["Non-PKP (Batas 4.8M)", "PKP (Wajib PPN)"]
+        selected_pkp_str = st.selectbox(
+            "Status PKP",
+            pkp_opts,
+            index=1 if default_pkp else 0
+        )
+        selected_pkp = selected_pkp_str == "PKP (Wajib PPN)"
+
+    # Overwrite the settings in data_filtered
+    use_pph_final = "umkm" in selected_entity
+    override_df = pd.DataFrame([
+        {"key": "business_entity", "value": selected_entity, "notes": "Overridden by UI"},
+        {"key": "is_pkp", "value": "true" if selected_pkp else "false", "notes": "Overridden by UI"},
+        {"key": "pph_final_rate", "value": str(current_settings.get("pph_final_rate", 0.005)), "notes": ""},
+        {"key": "annual_omzet_threshold", "value": str(current_settings.get("annual_omzet_threshold", 4800000000.0)), "notes": ""},
+        {"key": "ppn_rate", "value": str(current_settings.get("ppn_rate", 0.12)), "notes": ""},
+        {"key": "use_pph_final_umkm", "value": "true" if use_pph_final else "false", "notes": "Overridden by UI"}
+    ])
+    data_filtered["tax_settings"] = override_df
+
+    # Calculate reports
+    period_type = "yearly" if selected_month is None else "monthly"
+    pl_report = build_profit_loss_report(data_filtered, period=period_type, year=selected_year, month=selected_month)
+    tax_est = calculate_tax_estimate(data_filtered, selected_year)
+    
+    # KPI cards
+    col_k1, col_k2, col_k3 = st.columns(3)
+    with col_k1:
+        render_metric("Omzet Tahunan", rupiah(tax_est["annual_gross"]))
+        render_metric("Biaya Operasional", rupiah(pl_report["operating_expenses"]), status="warning" if pl_report["operating_expenses"] > 0 else "good")
+    with col_k2:
+        render_metric("Profit Sebelum Pajak", rupiah(pl_report["net_profit_before_tax"]), status="good" if pl_report["net_profit_before_tax"] > 0 else "danger")
+        render_metric("Estimasi Pajak (PPh)", rupiah(pl_report["estimated_tax"]), status="warning" if pl_report["estimated_tax"] > 0 else "good")
+    with col_k3:
+        render_metric("Profit Setelah Pajak", rupiah(pl_report["net_profit_after_tax"]), status="good" if pl_report["net_profit_after_tax"] > 0 else "danger")
+        
+        # Threshold Status
+        threshold = current_settings.get("annual_omzet_threshold", 4800000000.0)
+        pct_threshold = (tax_est["annual_gross"] / threshold) * 100
+        if tax_est["annual_gross"] > threshold:
+            render_metric("Status Threshold", "Wajib PKP", f"Melebihi 4.8M ({pct_threshold:.1f}%)", status="danger")
+        elif tax_est["annual_gross"] >= threshold * 0.8:
+            render_metric("Status Threshold", "Waspada PKP", f"Mendekati 4.8M ({pct_threshold:.1f}%)", status="warning")
+        else:
+            render_metric("Status Threshold", "Aman", f"{pct_threshold:.1f}% dari limit 4.8M", status="good")
+            
+    # Laba Rugi & Bulanan Layout
+    st.markdown("---")
+    col_l1, col_l2 = st.columns([2, 3])
+    
+    with col_l1:
+        st.subheader("Laporan Laba Rugi")
+        st.caption(f"Periode: {selected_month_str} {selected_year}" if selected_month else f"Periode: Tahun {selected_year}")
+        
+        pl_items = [
+            ("Penjualan Bruto", pl_report["gross_revenue"]),
+            ("Diskon/Retur Penjualan", -pl_report["discount"]),
+            ("Penjualan Bersih (Net Revenue)", pl_report["net_revenue"]),
+            ("Harga Pokok Penjualan (HPP)", -pl_report["hpp"]),
+            ("Laba Kotor (Gross Profit)", pl_report["gross_profit"]),
+            ("Biaya Marketplace", -pl_report["marketplace_fee"]),
+            ("Biaya Iklan (Marketing)", -pl_report["ad_cost"]),
+            ("Biaya Packing", -pl_report["packing_cost"]),
+            ("Biaya Operasional Lain (Expenses)", -pl_report["operating_expenses"]),
+            ("Laba Bersih Sebelum Pajak (EBT)", pl_report["net_profit_before_tax"]),
+            ("Estimasi Pajak", -pl_report["estimated_tax"]),
+            ("Laba Bersih Setelah Pajak (EAT)", pl_report["net_profit_after_tax"])
+        ]
+        pl_rows = [{"Item": item, "Nilai": rupiah(val)} for item, val in pl_items]
+        pl_df = pd.DataFrame(pl_rows)
+        render_styled_table(pl_df)
+        
+    with col_l2:
+        st.subheader("Omzet Bulanan & Estimasi PPh Final")
+        st.caption(f"Akumulasi Peredaran Bruto tahun {selected_year} terhadap threshold Rp 4,8 Miliar")
+        
+        monthly_df = build_monthly_omzet_summary(data_filtered, selected_year)
+        monthly_display = monthly_df.copy()
+        
+        # Format monthly df
+        monthly_display["gross_revenue"] = monthly_display["gross_revenue"].apply(rupiah)
+        monthly_display["net_revenue"] = monthly_display["net_revenue"].apply(rupiah)
+        monthly_display["estimated_pph_final"] = monthly_display["estimated_pph_final"].apply(rupiah)
+        monthly_display["accumulated_gross_revenue"] = monthly_display["accumulated_gross_revenue"].apply(rupiah)
+        monthly_display["threshold_status"] = monthly_display["threshold_status"].apply(text_status_emoji)
+        
+        monthly_display = monthly_display[["month", "gross_revenue", "net_revenue", "order_count", "estimated_pph_final", "accumulated_gross_revenue", "threshold_status"]]
+        monthly_display.columns = ["Bulan", "Omzet Bruto", "Net Revenue", "Order", "Est. PPh Final (0.5%)", "Akumulasi Omzet", "Status Threshold"]
+        render_styled_table(monthly_display)
+        
+    st.markdown("---")
+    col_t1, col_t2 = st.columns([1, 1])
+    
+    with col_t1:
+        st.subheader("Simulasi Pajak Pertambahan Nilai (PPN)")
+        if not selected_pkp:
+            st.info(
+                f"ℹ️ **Status: Non-PKP.** WP Non-PKP tidak memungut PPN Keluaran. "
+                f"Simulasi di bawah ini hanya acuan jika Anda mendaftar PKP dengan tarif PPN {current_settings.get('ppn_rate', 0.12)*100:.0f}%. "
+                f"Batas kewajiban PKP adalah jika omzet bruto melebihi Rp 4,8 Miliar setahun."
+            )
+            st.markdown(f"**PPN Keluaran (Output):** Rp 0")
+            st.markdown(f"**PPN Masukan (Input):** Rp 0")
+            st.markdown(f"**Estimasi Kurang Bayar:** Rp 0")
+        else:
+            st.success(
+                f"✅ **Status: PKP Aktif.** Simulasi pemungutan PPN Keluaran {current_settings.get('ppn_rate', 0.12)*100:.0f}% "
+                f"dan pengkreditan PPN Masukan dari expenses yang deductible."
+            )
+            st.markdown(f"**PPN Keluaran (Omzet Bruto * {current_settings.get('ppn_rate', 0.12)*100:.0f}%):** {rupiah(tax_est['ppn_keluaran'])}")
+            st.markdown(f"**PPN Masukan (Expenses Deductible * {current_settings.get('ppn_rate', 0.12)*100:.0f}%):** {rupiah(tax_est['ppn_masukan'])}")
+            st.markdown(f"**Estimasi PPN Kurang/(Lebih) Bayar:** **{rupiah(tax_est['ppn_kurang_bayar'])}**")
+            st.caption(f"*Catatan: {tax_est['ppn_notes']}")
+            
+        st.subheader("Tax Readiness Checklist")
+        st.caption("Status kelengkapan data administrasi untuk pelaporan SPT Tahunan")
+        
+        checklist = build_tax_readiness_checklist(data_filtered, selected_year)
+        chk_rows = []
+        for item in checklist:
+            chk_rows.append({
+                "Langkah Kesiapan": item["item"],
+                "Status": text_status_emoji(item["status"]),
+                "Keterangan": item["description"]
+            })
+        chk_df = pd.DataFrame(chk_rows)
+        render_styled_table(chk_df)
+        
+    with col_t2:
+        st.subheader("Insight Pajak & Keuangan")
+        st.caption("Rekomendasi otomatis berbasis data untuk persiapan perpajakan")
+        
+        insights = generate_finance_tax_insights(data_filtered, selected_year)
+        for insight in insights:
+            st.markdown(f"<div class='ai-box'>{insight}</div>", unsafe_allow_html=True)
+            
+        # Download Pack
+        st.subheader("Unduh Laporan (Export)")
+        st.caption("Ekspor laporan keuangan & tax readiness dalam berbagai format")
+        
+        col_e1, col_e2 = st.columns(2)
+        with col_e1:
+            # PDF Download Button
+            try:
+                from modules.pdf_report import generate_finance_tax_pdf_report
+                pdf_bytes = generate_finance_tax_pdf_report(data_filtered, selected_year)
+                st.download_button(
+                    label="📄 Download Laporan PDF",
+                    data=pdf_bytes,
+                    file_name=f"laporan_keuangan_pajak_parfum_{selected_year}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Gagal generate PDF: {e}")
+                
+            # CSV Download Button
+            csv_data = monthly_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📊 Download CSV Bulanan",
+                data=csv_data,
+                file_name=f"ringkasan_bulanan_pajak_parfum_{selected_year}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            
+        with col_e2:
+            # TXT Summary Download Button
+            txt_lines = [
+                "============================================================",
+                "LAPORAN KEUANGAN & TAX READINESS REPORT - SIMULASI INTERNAL",
+                "============================================================",
+                f"Tahun Analisis: {selected_year}",
+                f"Jenis Entitas: {selected_entity}",
+                f"Status PKP: {'Ya (PKP)' if selected_pkp else 'Tidak (Non-PKP)'}",
+                "------------------------------------------------------------",
+                "RINGKASAN METRIK KEUANGAN:",
+                f"- Omzet Bruto Tahunan: {rupiah(pl_report['gross_revenue'])}",
+                f"- Penjualan Bersih (Net): {rupiah(pl_report['net_revenue'])}",
+                f"- HPP Tahunan: {rupiah(pl_report['hpp'])}",
+                f"- Laba Kotor: {rupiah(pl_report['gross_profit'])}",
+                f"- Biaya Operasional (Expenses): {rupiah(pl_report['operating_expenses'])}",
+                f"- Laba Bersih Sebelum Pajak (EBT): {rupiah(pl_report['net_profit_before_tax'])}",
+                f"- Estimasi Pajak: {rupiah(pl_report['estimated_tax'])}",
+                f"- Laba Bersih Setelah Pajak (EAT): {rupiah(pl_report['net_profit_after_tax'])}",
+                "------------------------------------------------------------",
+                "PPN READINESS STATUS:",
+                f"Status: {tax_est['ppn_status']}",
+                f"PPN Keluaran: {rupiah(tax_est['ppn_keluaran'])}",
+                f"PPN Masukan: {rupiah(tax_est['ppn_masukan'])}",
+                f"PPN Kurang Bayar: {rupiah(tax_est['ppn_kurang_bayar'])}",
+                "------------------------------------------------------------",
+                "DOKUMEN SPT YANG PERLU DISIAPKAN:",
+                "- Rekapitulasi peredaran bruto bulanan.",
+                "- Bukti penyetoran PPh Final UMKM bulanan (SSP/BPN).",
+                "- Daftar aset & kewajiban akhir tahun untuk Form SPT 1770 Lampiran IV.",
+                "------------------------------------------------------------",
+                "DISCLAIMER:",
+                "Estimasi pajak bersifat simulasi internal. Validasi final tetap perlu dilakukan dengan konsultan pajak atau DJP."
+            ]
+            txt_content = "\n".join(txt_lines)
+            st.download_button(
+                label="📝 Download Ringkasan TXT",
+                data=txt_content.encode('utf-8'),
+                file_name=f"ringkasan_keuangan_pajak_parfum_{selected_year}.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
 
 elif page == "Data Dummy":
     st.title("Data Dummy 📁")

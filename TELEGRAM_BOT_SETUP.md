@@ -1,6 +1,6 @@
-# Setup Telegram Bot - AI Business Control Tower (V3B)
+# Setup Telegram Bot - AI Business Control Tower (V5A)
 
-Panduan ini menjelaskan cara melakukan setup, mendapatkan token Telegram, dan menjalankan Telegram Bot secara lokal untuk memantau performa bisnis parfum Anda.
+Panduan ini menjelaskan cara melakukan setup, mendapatkan token Telegram, dan menjalankan Telegram Bot secara lokal untuk memantau performa bisnis, laporan keuangan, dan kesiapan pajak usaha Anda.
 
 ---
 
@@ -88,6 +88,12 @@ Buka bot Telegram Anda yang baru saja dibuat, lalu uji perintah-perintah berikut
 * `/report` - Mengirim file PDF laporan harian langsung ke chat Anda.
 * `/alert_check` - 🚨 Memeriksa anomali operasional Google Sheets (stok kritis, bahan kritis, iklan boncos, margin rendah, data health error) dan mengirim ringkasan alert.
 
+### Fitur Keuangan & Pajak (V5A):
+* `/finance` - 📊 Mengirimkan ringkasan metrik laporan laba rugi tahun ini.
+* `/tax` - 🧾 Mengirimkan simulasi perpajakan (PPh Final UMKM dan readiness PPN).
+* `/tax_report` - 📄 Mengirimkan file PDF Laporan Keuangan & Pajak tahun ini.
+* `/spt_check` - 📋 Mengirimkan checklist dokumen administrasi wajib untuk pelaporan SPT Tahunan.
+
 ### Fitur Penjadwalan Laporan Otomatis (V4B):
 * `/daily_on` - Mengaktifkan laporan otomatis harian (mengirim metrik harian + PDF).
 * `/daily_off` - Mematikan laporan otomatis harian.
@@ -117,6 +123,9 @@ Coba ketik pesan teks biasa berikut ke chat bot:
 * `bahan baku apa yang harus dibeli`
 * `buat laporan` atau `kirim pdf`
 * `apa yang harus dilakukan hari ini` (memicu control room /owner)
+* `laporan keuangan` atau `laba rugi` (memicu /finance)
+* `pajak` atau `pph final` atau `ppn` (memicu /tax)
+* `spt` atau `checklist pajak` (memicu /spt_check)
 
 ---
 

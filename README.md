@@ -1,6 +1,6 @@
-# AI Business Control Tower — Demo Bisnis Parfum (V4B)
+# AI Business Control Tower — Demo Bisnis Parfum (V5A)
 
-Aplikasi dashboard dan chatbot AI interaktif untuk mengontrol performa bisnis parfum, dirancang khusus untuk mempermudah owner memantau keuangan, stok, HPP, produksi, dan kampanye iklan. Versi V4B ini dilengkapi dengan sistem penjadwalan laporan otomatis (daily & closing) serta alert operasional via Telegram Bot.
+Aplikasi dashboard dan chatbot AI interaktif untuk mengontrol performa bisnis parfum, dirancang khusus untuk mempermudah owner memantau keuangan, stok, HPP, produksi, dan kampanye iklan. Versi V5A ini dilengkapi dengan modul laporan keuangan (Laba Rugi) dan tax readiness pack (simulasi PPh Final UMKM & PPN) di dashboard dan Telegram Bot.
 
 ## 🔗 Live Demo
 Aplikasi ini telah dideploy secara online dan dapat diakses di:
@@ -121,6 +121,19 @@ Versi **V4B** menambahkan kemampuan otomatisasi pengiriman informasi operasional
 3. **Alert Check:** Deteksi otomatis kondisi anomali bisnis (stok kritis, bahan kritis, iklan boncos, margin rendah < 25%, data health check error) secara real-time. Command: `/alert_check`.
 4. **Schedule Status & Send Now:** Meninjau konfigurasi jadwal aktif dan list target chat ID (`/schedule_status`) serta mengirimkan summary instan (`/send_now`).
 5. **Allowed Chat ID target:** Mendukung pembatasan chat whitelist (`ALLOWED_CHAT_IDS` di `.env`). Jika kosong, bot akan menyimpan target penerima laporan terjadwal dari user yang mengaktifkannya (`/daily_on`/`/closing_on`) secara runtime di `runtime_bot_settings.json`.
+
+---
+
+## 📊 Fitur V5A - Finance & Tax Readiness Pack
+
+Versi **V5A** menambahkan modul laporan keuangan (Laba Rugi) dan simulasi kesiapan perpajakan untuk membantu persiapan laporan SPT Tahunan:
+1. **Laporan Laba Rugi Tahunan/Bulanan:** Menyajikan ringkasan Penjualan Bruto, Diskon, Penjualan Bersih, HPP, Laba Kotor, Biaya Marketplace, Biaya Iklan, Biaya Packing, Biaya Operasional (Expenses), Laba Bersih Sebelum Pajak, Estimasi Pajak, dan Laba Bersih Setelah Pajak.
+2. **Simulasi PPh Final UMKM:** Menghitung otomatis beban PPh Final 0,5% dari peredaran bruto bulanan/tahunan berdasarkan PP 55/2022.
+3. **Simulasi PPN (PKP & Non-PKP):** Menganalisis kewajiban PKP berdasarkan threshold omzet tahunan Rp 4,8 Miliar. Jika status PKP aktif, menyajikan simulasi PPN Keluaran, PPN Masukan, dan estimasi kurang/lebih bayar.
+4. **Tax Readiness Checklist:** Memandu kelengkapan berkas administrasi dasar (data penjualan 12 bulan, expenses, tax settings, tax payments, konsistensi SKU) sebelum pelaporan SPT Tahunan.
+5. **Ekspor Laporan Lengkap:** Mendukung download ringkasan teks (`.txt`), ringkasan bulanan pajak (`.csv`), dan PDF Laporan Laba Rugi & Tax Readiness (`.pdf`) secara instan.
+6. **Command Telegram Baru:** Perintah baru `/finance`, `/tax`, `/tax_report`, `/spt_check`, serta integrasi NLP keyword untuk memudahkan akses via Telegram.
+7. **Panduan Setup Lengkap:** Lihat panduan detail pengisian tab Google Sheets di berkas [FINANCE_TAX_SETUP.md](file:///C:/AI%20PROJECT/parfum_ai_dashboard_demo/FINANCE_TAX_SETUP.md).
 
 ---
 
