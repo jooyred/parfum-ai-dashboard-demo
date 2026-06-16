@@ -7,3 +7,4 @@ __pycache__/
 credentials.json
 *.json
 tmp_qa_laporan_harian.pdf
+runtime_bot_settings.json

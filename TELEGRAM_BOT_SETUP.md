@@ -80,17 +80,35 @@ Untuk alasan keamanan data, Anda dapat membatasi akses bot agar hanya membalas C
 ## 5. Uji Coba Command & Fitur
 Buka bot Telegram Anda yang baru saja dibuat, lalu uji perintah-perintah berikut:
 
-### Menu Command:
+### Menu Command Inti:
 * `/start` - Menampilkan pesan pembuka.
-* `/help` - Menampilkan daftar perintah dan contoh pertanyaan.
+* `/help` - Menampilkan daftar perintah lengkap.
 * `/owner` - 👑 Menampilkan ringkasan Owner Control Room (Keputusan harian, keuangan, prioritas, dan 5 rencana aksi).
 * `/summary` - Menampilkan metrik finansial, status bisnis, dan 3 action plan teratas.
+* `/report` - Mengirim file PDF laporan harian langsung ke chat Anda.
+* `/alert_check` - 🚨 Memeriksa anomali operasional Google Sheets (stok kritis, bahan kritis, iklan boncos, margin rendah, data health error) dan mengirim ringkasan alert.
+
+### Fitur Penjadwalan Laporan Otomatis (V4B):
+* `/daily_on` - Mengaktifkan laporan otomatis harian (mengirim metrik harian + PDF).
+* `/daily_off` - Mematikan laporan otomatis harian.
+* `/set_daily_time HH:MM` - Mengatur jam kirim laporan otomatis harian (contoh: `/set_daily_time 08:00`).
+* `/closing_on` - Mengaktifkan closing report otomatis sore hari.
+* `/closing_off` - Mematikan closing report otomatis sore hari.
+* `/set_closing_time HH:MM` - Mengatur jam kirim closing report sore (contoh: `/set_closing_time 17:00`).
+* `/schedule_status` - Menampilkan status keaktifan jadwal harian & closing, jam target, allowed target chat ID, dan timezone.
+* `/send_now` - Mengirimkan laporan owner summary + PDF laporan saat ini juga tanpa menunggu jam terjadwal.
+
+> [!NOTE]
+> * **Default Timezone**: `Asia/Jakarta` (WIB).
+> * **Default Daily Report Time**: `08:00`.
+> * **Default Closing Report Time**: `17:00`.
+
+### Menu Detail Lainnya:
 * `/top_products` - Menampilkan 5 produk terlaris hari ini.
 * `/stock` - Menampilkan daftar produk jadi dengan stok kritis.
 * `/materials` - Menampilkan status bahan baku dan nominal rencana belanja.
 * `/production` - Menampilkan rekomendasi jumlah produksi per SKU.
 * `/ads` - Menampilkan efisiensi ROAS dan status kampanye iklan.
-* `/report` - Mengirim file PDF laporan harian langsung ke chat Anda.
 
 ### Uji Coba Pertanyaan Natural Language (Ketik Biasa):
 Coba ketik pesan teks biasa berikut ke chat bot:
@@ -98,10 +116,13 @@ Coba ketik pesan teks biasa berikut ke chat bot:
 * `stok kritis`
 * `bahan baku apa yang harus dibeli`
 * `buat laporan` atau `kirim pdf`
+* `apa yang harus dilakukan hari ini` (memicu control room /owner)
 
 ---
 
-## 6. Deployment ke Server Produksi (Render / Railway / VPS)
-Jika Anda ingin bot ini tetap aktif 24/7 tanpa perlu menyalakan komputer lokal:
-1. **VPS (Ubuntu / Linux)**: Deploy menggunakan tools seperti `systemd` atau `pm2` untuk membiarkan proses python berjalan terus-menerus di VPS Anda.
-2. **Railway / Render**: Deploy repositori GitHub Anda sebagai **Background Worker Service**. Masukkan `TELEGRAM_BOT_TOKEN`, `ALLOWED_CHAT_IDS`, dan data service account Google Cloud sebagai environment variables di panel pengaturan platform cloud tersebut.
+## 6. Catatan Operasional & Deployment Produksi
+* **Running Lokal**: Laporan terjadwal otomatis hanya aktif selama proses `python telegram_bot.py` hidup di terminal Anda. Jika terminal ditutup atau komputer mati/sleep, scheduler tidak berjalan.
+* **Allowed Chat ID**:
+  * Jika `ALLOWED_CHAT_IDS` di berkas `.env` kosong, bot hanya akan mengirimkan laporan terjadwal otomatis ke Chat ID dari user yang mengaktifkannya via `/daily_on` atau `/closing_on`. Chat ID target disimpan sementara secara lokal di `runtime_bot_settings.json` (telah dimasukkan ke `.gitignore`).
+  * Jika `ALLOWED_CHAT_IDS` terisi, hanya Chat ID yang ada di whitelist tersebut yang bisa berinteraksi dengan bot, sedangkan command dari Chat ID lain akan ditolak dengan sopan.
+* **Deployment Produksi**: Untuk memastikan bot berjalan 24 jam tanpa henti, deploy aplikasi ke server cloud seperti **VPS** (menggunakan PM2/systemd), **Render**, atau **Railway** sebagai background service/worker. Pastikan untuk memindahkan pengaturan environment variables ke panel platform masing-masing.

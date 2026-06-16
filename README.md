@@ -1,6 +1,6 @@
-# AI Business Control Tower — Demo Bisnis Parfum (V2)
+# AI Business Control Tower — Demo Bisnis Parfum (V4B)
 
-Aplikasi dashboard dan chatbot AI interaktif untuk mengontrol performa bisnis parfum, dirancang khusus untuk mempermudah owner memantau keuangan, stok, HPP, produksi, dan kampanye iklan. Versi V2 ini hadir dengan peningkatan UI/UX premium ala SaaS, validasi upload data transaksi, dan ekspor laporan ke PDF.
+Aplikasi dashboard dan chatbot AI interaktif untuk mengontrol performa bisnis parfum, dirancang khusus untuk mempermudah owner memantau keuangan, stok, HPP, produksi, dan kampanye iklan. Versi V4B ini dilengkapi dengan sistem penjadwalan laporan otomatis (daily & closing) serta alert operasional via Telegram Bot.
 
 ## 🔗 Live Demo
 Aplikasi ini telah dideploy secara online dan dapat diakses di:
@@ -88,9 +88,9 @@ Aplikasi ini dirancang menggunakan path relatif yang aman, sehingga siap dideplo
 
 ---
 
-## 🤖 Telegram Bot (V3B & V4A) - Pemantau Bisnis & Keputusan Lokal
+## 🤖 Telegram Bot (V3B, V4A & V4B) - Pemantau Bisnis & Laporan Otomatis
 
-Aplikasi ini dilengkapi dengan **Telegram Bot** agar owner dapat memantau performa bisnis, melihat keputusan harian (Control Room), dan mengunduh laporan PDF harian langsung dari Telegram secara real-time (membaca data dari Google Sheets yang sama).
+Aplikasi ini dilengkapi dengan **Telegram Bot** agar owner dapat memantau performa bisnis, melihat keputusan harian (Control Room), mengunduh laporan PDF harian langsung dari Telegram secara real-time, serta menerima laporan otomatis terjadwal (Daily & Closing Report) dan alert operasional langsung di Telegram.
 
 ### Cara Menjalankan Bot Telegram Lokal
 1. Ikuti panduan lengkap pembuatan bot di BotFather dan konfigurasinya di berkas [TELEGRAM_BOT_SETUP.md](file:///C:/AI%20PROJECT/parfum_ai_dashboard_demo/TELEGRAM_BOT_SETUP.md).
@@ -110,6 +110,17 @@ Versi **V4A** ini membawa sistem ke tahap siap operasional untuk owner bisnis pa
 2. **Data Health Check:** Halaman khusus untuk memvalidasi kelengkapan tab, format kolom, konsistensi SKU, data kosong, dan mendeteksi anomali angka pada Google Sheets/dummy dengan memberikan Health Score (0-100).
 3. **Refresh Timestamp:** Menampilkan waktu penyegaran data terakhir pada sidebar secara realtime.
 4. **Command Telegram Baru (/owner):** Mengirimkan ringkasan Owner Control Room (Status bisnis, keuangan, prioritas operasional, dan action plan) secara langsung melalui bot Telegram.
+
+---
+
+## 🔔 Fitur V4B - Telegram Scheduled Report & Alert
+
+Versi **V4B** menambahkan kemampuan otomatisasi pengiriman informasi operasional dan alert kritis langsung ke Telegram owner/admin:
+1. **Scheduled Daily Report:** Bot mengirim ringkasan finansial harian beserta lampiran PDF laporan harian otomatis pada jam tertentu (Default: `08:00` WIB, Timezone: `Asia/Jakarta`). Command: `/daily_on`, `/daily_off`, `/set_daily_time HH:MM`, `/send_now`.
+2. **Closing Report Sore:** Ringkasan penjualan, profit, margin bersih, produk terlaris hari ini, serta jumlah stok/bahan baku kritis untuk persiapan operasional besok pagi (Default: `17:00` WIB). Command: `/closing_on`, `/closing_off`, `/set_closing_time HH:MM`.
+3. **Alert Check:** Deteksi otomatis kondisi anomali bisnis (stok kritis, bahan kritis, iklan boncos, margin rendah < 25%, data health check error) secara real-time. Command: `/alert_check`.
+4. **Schedule Status & Send Now:** Meninjau konfigurasi jadwal aktif dan list target chat ID (`/schedule_status`) serta mengirimkan summary instan (`/send_now`).
+5. **Allowed Chat ID target:** Mendukung pembatasan chat whitelist (`ALLOWED_CHAT_IDS` di `.env`). Jika kosong, bot akan menyimpan target penerima laporan terjadwal dari user yang mengaktifkannya (`/daily_on`/`/closing_on`) secara runtime di `runtime_bot_settings.json`.
 
 ---
 
