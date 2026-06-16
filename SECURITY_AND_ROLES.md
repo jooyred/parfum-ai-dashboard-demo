@@ -17,19 +17,19 @@ Untuk mengaktifkan sistem login di Streamlit, Anda wajib menambahkan tabel konfi
 ```toml
 [auth_users.owner]
 username = "owner"
-password_hash = "f339cf3d5bc0d17676615b3c37341e97669d068cb187514a6015dc3dfc58d042" # hash dari password "owner123"
+password_hash = "aca9972a606fc3134bc8c0a6d6c4694ac3dbd45a91105a04fb42cbab31f50a9a" # hash dari password "owner123"
 role = "owner"
 display_name = "Owner Utama"
 
 [auth_users.staff]
 username = "staff"
-password_hash = "6bc91f24d35e1654bb049e612140bb60cfd03c27e056d68b92bde44cdffc04db" # hash dari password "staff123"
+password_hash = "352875484d58a7a56ed5d1c5adc2ae129f0c68e0c8da4a760345518e583e01f6" # hash dari password "staff123"
 role = "staff"
 display_name = "Staff Gudang"
 
 [auth_users.viewer]
 username = "viewer"
-password_hash = "ef1d1bb73315a6e8731d102dc80562e6e3009943fcfcb5351f041ff34e2b09ee" # hash dari password "viewer123"
+password_hash = "e7c7f40bab6255057d1e5c6ead7ac242de9ca53ee19c869a37e8df6c91e64727" # hash dari password "viewer123"
 role = "viewer"
 display_name = "Investor Viewer"
 ```
