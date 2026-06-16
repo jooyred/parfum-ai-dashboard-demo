@@ -200,6 +200,7 @@ if st.session_state.get("google_sheets_data") is None:
                 st.session_state["google_sheets_data"] = normalize_google_sheet_data(raw_data)
                 st.session_state["data_source_mode"] = "google_sheets"
                 st.session_state["active_sheet_id"] = actual_id
+                st.session_state["last_refresh_timestamp"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
             else:
                 st.warning(f"⚠️ Google Sheets auto-load gagal! Tab wajib berikut tidak ditemukan: {', '.join(missing)}")
         except Exception as e:
@@ -226,6 +227,15 @@ def render_metric(label, value, delta=None, status="good"):
             {delta_html}
         </div>
         """, unsafe_allow_html=True)
+
+def render_decision_card(title, value_html, desc):
+    st.markdown(f"""
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; min-height: 180px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 12px;">
+        <div style="font-size: 0.8rem; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 8px;">{title}</div>
+        <div style="font-size: 1.1rem; font-weight: 700; color: #0f172a; margin-bottom: 6px;">{value_html}</div>
+        <div style="font-size: 0.75rem; color: #334155; line-height: 1.3;">{desc}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 def as_rp_df(df, cols):
     out = df.copy()
@@ -260,11 +270,13 @@ with st.sidebar:
     page = st.radio(
         "Navigasi",
         [
+            "Owner Control Room",
             "Dashboard Overview",
             "Stok, HPP & Produksi",
             "Chatbot AI Bisnis",
             "Laporan Harian",
             "Setup Data",
+            "Data Health Check",
             "Data Dummy"
         ],
         label_visibility="collapsed"
@@ -289,6 +301,7 @@ with st.sidebar:
                         is_valid, missing = validate_sheet_tabs(raw_data)
                         if is_valid:
                             st.session_state["google_sheets_data"] = normalize_google_sheet_data(raw_data)
+                            st.session_state["last_refresh_timestamp"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
                             reset_pdf_states()
                             st.sidebar.success("Data di-refresh!")
                             st.rerun()
@@ -316,11 +329,189 @@ with st.sidebar:
     else:
         st.sidebar.markdown(f"**Data Source:**<br/>{status_badge('Dummy CSV')}", unsafe_allow_html=True)
         
+    # Refresh timestamp
+    if mode == "google_sheets":
+        ts = st.session_state.get("last_refresh_timestamp", "-")
+        st.sidebar.markdown(f"<div style='margin-top: -5px; margin-bottom: 10px;'><small style='color: #cbd5e1;'>Last refresh: {ts}</small></div>", unsafe_allow_html=True)
+    else:
+        st.sidebar.markdown(f"<div style='margin-top: 5px; margin-bottom: 10px;'><small style='color: #cbd5e1;'>Last refresh: local dummy data</small></div>", unsafe_allow_html=True)
+
     st.markdown("---")
-    st.caption("Demo V3A • Data dummy / Google Sheets")
+    st.caption("Demo V4A • Data dummy / Google Sheets")
 
 # Routing Pages
-if page == "Dashboard Overview":
+# Routing Pages
+if page == "Owner Control Room":
+    st.title("Owner Control Room 👑")
+    st.caption("Ringkasan keputusan harian untuk owner bisnis parfum berdasarkan data aktif.")
+    
+    # Financial metrics
+    sales = data["sales"]
+    m = overview_metrics(sales)
+    margin_val = m["margin"]
+    
+    # Stock status
+    invp = inventory_product_status(data["inventory_products"])
+    critical_products = invp[invp["status"] == "Kritis"]
+    produk_kritis_count = len(critical_products)
+    
+    # Materials status
+    invm = inventory_material_status(data["inventory_materials"])
+    critical_materials = invm[invm["status"] == "Kritis"]
+    bahan_kritis_count = len(critical_materials)
+    
+    # Business health logic
+    if margin_val < 0.15 or produk_kritis_count > 5 or bahan_kritis_count > 12:
+        status_bisnis = "Kritis"
+        status_class = "metric-card-danger"
+        status_desc = "🔴 **Kondisi Kritis:** Profitabilitas di bawah batas minimal (15%) atau terjadi kelangkaan stok/bahan yang parah. Tindakan korektif segera diperlukan!"
+    elif margin_val >= 0.25 and produk_kritis_count <= 3 and bahan_kritis_count <= 10:
+        status_bisnis = "Sehat"
+        status_class = "metric-card-good"
+        status_desc = "🟢 **Kondisi Sehat:** Profitabilitas sangat prima (>= 25%) dan level stok produk kritis serta bahan baku masih terkendali. Pertahankan!"
+    else:
+        status_bisnis = "Waspada"
+        status_class = "metric-card-warning"
+        status_desc = "🟡 **Kondisi Waspada:** Margin laba sedang atau terdapat produk/bahan kritis yang butuh perhatian. Lakukan tindakan preventif."
+
+    # Render Business Status Card
+    st.markdown(f"""
+    <div class="metric-card {status_class}" style="min-height: auto; padding: 15px; margin-bottom: 20px;">
+        <div class="metric-label">Status Kesehatan Bisnis Hari Ini</div>
+        <div class="metric-value" style="font-size: 2rem; display: flex; align-items: center; gap: 10px;">
+            {status_bisnis.upper()}
+        </div>
+        <div style="font-size: 0.9rem; margin-top: 8px; color: #1e293b;">{status_desc}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Gather decision cards data
+    # 1. Financial summary
+    fin_desc = "Profitabilitas sangat prima." if margin_val >= 0.25 else "Profitabilitas cukup stabil." if margin_val >= 0.15 else "Profitabilitas rendah, tekan biaya operasional."
+    fin_val_html = f"{rupiah(m['profit'])} <span style='font-size: 0.8rem; font-weight: normal; color: #64748b;'>({pct(margin_val)} Margin)</span>"
+    
+    # 2. Production priority
+    pp = data["production_plan"]
+    need_prod = pp[pp["recommended_production"] > 0]
+    if not need_prod.empty:
+        top_prod = need_prod.sort_values("recommended_production", ascending=False).iloc[0]
+        prod_val_html = top_prod['product']
+        prod_desc = f"Rekomendasi produksi <b>{int(top_prod['recommended_production'])} pcs</b> karena stock rendah ({int(top_prod['stock'])} pcs) & demand 7d tinggi ({int(top_prod['demand_7d'])} pcs). Bottleneck: {top_prod['bottleneck']}."
+    else:
+        prod_val_html = "Aman"
+        prod_desc = "Semua stok produk mencukupi, tidak ada antrean produksi mendesak."
+        
+    # 3. Materials shopping
+    need_m, suggested_cost = suggested_purchase_value(data["inventory_materials"])
+    if not need_m.empty:
+        mats_list = ", ".join(need_m.head(3)["material"].tolist())
+        mats_val_html = mats_list
+        mats_desc = f"Beli bahan baku kritis: {mats_list}. Estimasi total anggaran belanja: <b>{rupiah(suggested_cost)}</b>."
+    else:
+        mats_val_html = "Aman"
+        mats_desc = "Stok bahan baku aman dan mencukupi kebutuhan operasional."
+        
+    # 4. Ads review
+    ads_df = data["ads"]
+    critical_ads = ads_df[ads_df["status"].isin(["Waspada", "Boncos"])]
+    if not critical_ads.empty:
+        ads_list = ", ".join(critical_ads.head(2)["campaign"].tolist())
+        ads_val_html = ads_list
+        ads_desc = f"Campaign <b>{ads_list}</b> performa Waspada/Boncos. Rekomendasi: Evaluasi creative, turunkan budget, atau pause campaign."
+    else:
+        ads_val_html = "Sehat"
+        ads_desc = "Seluruh campaign iklan berjalan lancar dengan ROAS di atas target."
+        
+    # 5. Top Profit Product
+    top_prod_df = top_products(sales, latest_only=False)
+    if not top_prod_df.empty:
+        cuan_row = top_prod_df.iloc[0]
+        cuan_val_html = cuan_row['product']
+        cuan_desc = f"Produk bermargin profit tertinggi (<b>{pct(cuan_row['margin'])}</b>). Rekomendasi: Dorong volume penjualan via bundling/promo."
+    else:
+        cuan_val_html = "N/A"
+        cuan_desc = "Data produk tidak tersedia."
+        
+    # Render 5 columns
+    col_c1, col_c2, col_c3, col_c4, col_c5 = st.columns(5)
+    with col_c1:
+        render_decision_card("💵 Keuangan", fin_val_html, fin_desc)
+    with col_c2:
+        render_decision_card("🏭 Produksi Prioritas", prod_val_html, prod_desc)
+    with col_c3:
+        render_decision_card("🧪 Belanja Bahan", mats_val_html, mats_desc)
+    with col_c4:
+        render_decision_card("📣 Iklan Perlu Dicek", ads_val_html, ads_desc)
+    with col_c5:
+        render_decision_card("🏆 Produk Ter-Cuan", cuan_val_html, cuan_desc)
+        
+    st.markdown("---")
+    
+    # Action Plan & WhatsApp Export
+    col_ap1, col_ap2 = st.columns([3, 2])
+    with col_ap1:
+        st.subheader("🎯 Action Plan Hari Ini")
+        st.markdown("Berikut adalah rekomendasi rencana aksi operasional hari ini secara otomatis:")
+        
+        action_plans = []
+        if not need_prod.empty:
+            top_prod_row = need_prod.sort_values("recommended_production", ascending=False).iloc[0]
+            action_plans.append(f"Produksi <b>{top_prod_row['product']}</b> sebanyak <b>{int(top_prod_row['recommended_production'])} pcs</b> untuk memenuhi demand. Bottleneck: {top_prod_row['bottleneck']}.")
+        else:
+            action_plans.append("Stok produk jadi mencukupi, tidak perlu jadwal produksi baru hari ini.")
+
+        if not need_m.empty:
+            mats_list = ", ".join(need_m.head(3)["material"].tolist())
+            action_plans.append(f"Lakukan pengadaan bahan baku kritis: <b>{mats_list}</b> dengan estimasi anggaran <b>{rupiah(suggested_cost)}</b>.")
+        else:
+            action_plans.append("Stok bahan baku aman, tidak ada rencana belanja mendesak.")
+
+        if not critical_ads.empty:
+            ads_list = ", ".join(critical_ads["campaign"].tolist())
+            action_plans.append(f"Evaluasi creative atau sesuaikan budget campaign iklan: <b>{ads_list}</b> karena performa Waspada/Boncos.")
+        else:
+            action_plans.append("Seluruh campaign iklan berjalan sehat dengan ROAS di atas target.")
+
+        if not top_prod_df.empty:
+            cuan_row = top_prod_df.iloc[0]
+            action_plans.append(f"Optimalkan pemasaran produk bermargin tinggi <b>{cuan_row['product']}</b> ({pct(cuan_row['margin'])}) untuk meningkatkan profit bersih.")
+        else:
+            action_plans.append("Pertahankan harga jual saat ini untuk menjaga kestabilan margin.")
+
+        action_plans.append("Verifikasi silang (cross-check) stok fisik botol kemasan sebelum meluncurkan surat perintah kerja produksi.")
+        
+        for idx, plan in enumerate(action_plans, start=1):
+            st.markdown(f"{idx}. {plan}", unsafe_allow_html=True)
+            
+    with col_ap2:
+        st.subheader("📋 Ringkasan WhatsApp")
+        st.caption("Salin ringkasan keputusan harian di bawah ini untuk dikirimkan ke WhatsApp tim Anda.")
+        
+        summary_text = (
+            f"📋 *RINGKASAN KEPUTUSAN HARIAN OWNER*\n"
+            f"📅 Tanggal: {m['latest_date'].strftime('%Y-%m-%d')}\n"
+            f"🏥 Status Bisnis: {status_bisnis.upper()}\n\n"
+            f"💵 Finansial:\n"
+            f"   - Omzet: {rupiah(m['gross'])}\n"
+            f"   - Profit Bersih: {rupiah(m['profit'])}\n"
+            f"   - Margin: {pct(margin_val)}\n\n"
+            f"🎯 Rencana Aksi Hari Ini:\n"
+        )
+        for idx, plan in enumerate(action_plans, start=1):
+            clean_plan = plan.replace("<b>", "").replace("</b>", "")
+            summary_text += f"{idx}. {clean_plan}\n"
+            
+        st.text_area("WhatsApp Copy-Paste", value=summary_text, height=200, label_visibility="collapsed")
+        
+        st.download_button(
+            "📥 Unduh Ringkasan Owner (.txt)",
+            summary_text,
+            file_name="owner_summary_harian.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
+
+elif page == "Dashboard Overview":
     st.title("Dashboard Overview 📊")
     st.caption("Ringkasan performa bisnis parfum berdasarkan data dummy atau uploaded CSV.")
     
@@ -862,6 +1053,187 @@ elif page == "Setup Data":
     * Demo saat ini menerima upload **sales.csv** secara dinamis ke memory session berjalan atau integrasi ke **Google Sheets** menggunakan API Service Account.
     * Setelah data real siap, modul berikutnya bisa dibuat agar semua file bisa upload atau disinkronkan langsung dengan database ERP Anda.
     """)
+
+elif page == "Data Health Check":
+    st.title("Data Health Check 🔍")
+    st.caption("Mengecek kualitas data Google Sheets atau dummy agar data siap dipakai.")
+    
+    # Compute health check values
+    errors = []
+    warnings = []
+    rows_checked = 0
+
+    # 1. Worksheets Check
+    expected_keys = ["products", "sales", "inventory_products", "inventory_materials", "bom", "ads", "production_plan"]
+    for key in expected_keys:
+        if key not in data or data[key] is None or data[key].empty:
+            errors.append({
+                "Severity": "🔴 Error",
+                "Area": "Struktur Berkas",
+                "Issue": f"Tab '{key}' tidak ditemukan atau kosong.",
+                "Recommendation": f"Pastikan tab '{key}' ada di Google Sheets dan berisi data."
+            })
+        else:
+            rows_checked += len(data[key])
+
+    # 2. Columns Check
+    sales_cols = ["date", "platform", "order_id", "sku", "product", "qty", "price", "discount", "marketplace_fee", "packing_cost", "ad_cost_allocated", "hpp", "gross_revenue", "net_revenue", "net_profit", "net_margin", "order_status"]
+    if "sales" in data and not data["sales"].empty:
+        sales_df = data["sales"]
+        for col in sales_cols:
+            if col not in sales_df.columns:
+                errors.append({
+                    "Severity": "🔴 Error",
+                    "Area": "Kolom Penjualan",
+                    "Issue": f"Kolom wajib '{col}' tidak ditemukan di tab sales.",
+                    "Recommendation": f"Tambahkan kolom '{col}' ke tab sales."
+                })
+
+    # 3. Empty values check in sales
+    if "sales" in data and not data["sales"].empty:
+        sales_df = data["sales"]
+        for col in ["date", "sku", "qty", "price", "net_profit"]:
+            if col in sales_df.columns:
+                empty_count = sales_df[col].isnull().sum() + (sales_df[col] == "").sum()
+                if empty_count > 0:
+                    errors.append({
+                        "Severity": "🔴 Error",
+                        "Area": "Konsistensi Data",
+                        "Issue": f"Kolom '{col}' memiliki {empty_count} baris kosong/null.",
+                        "Recommendation": f"Isi data kosong pada kolom '{col}' di tab sales."
+                    })
+
+    # 4. SKU Mismatch
+    if "products" in data and not data["products"].empty:
+        valid_skus = set(data["products"]["sku"].astype(str).str.strip())
+        
+        # Check sales
+        if "sales" in data and not data["sales"].empty and "sku" in data["sales"].columns:
+            mismatched_sales = data["sales"][~data["sales"]["sku"].astype(str).str.strip().isin(valid_skus)]
+            if not mismatched_sales.empty:
+                mismatched_count = mismatched_sales["sku"].nunique()
+                errors.append({
+                    "Severity": "🔴 Error",
+                    "Area": "Relasi SKU",
+                    "Issue": f"Terdapat {mismatched_count} SKU di tab sales yang tidak terdaftar di tab products.",
+                    "Recommendation": "Daftarkan SKU baru tersebut ke tab products agar HPP & Margin terhitung benar."
+                })
+                
+        # Check inventory products
+        if "inventory_products" in data and not data["inventory_products"].empty and "sku" in data["inventory_products"].columns:
+            mismatched_inv = data["inventory_products"][~data["inventory_products"]["sku"].astype(str).str.strip().isin(valid_skus)]
+            if not mismatched_inv.empty:
+                errors.append({
+                    "Severity": "🔴 Error",
+                    "Area": "Relasi SKU",
+                    "Issue": f"Terdapat {len(mismatched_inv)} SKU di tab inventory_products yang tidak terdaftar di tab products.",
+                    "Recommendation": "Pastikan semua SKU di stok produk jadi ada di daftar master produk."
+                })
+                
+        # Check bom
+        if "bom" in data and not data["bom"].empty and "sku" in data["bom"].columns:
+            mismatched_bom = data["bom"][~data["bom"]["sku"].astype(str).str.strip().isin(valid_skus)]
+            if not mismatched_bom.empty:
+                errors.append({
+                    "Severity": "🔴 Error",
+                    "Area": "Relasi SKU",
+                    "Issue": f"Terdapat {mismatched_bom['sku'].nunique()} SKU di tab bom yang tidak terdaftar di tab products.",
+                    "Recommendation": "Tambahkan formula BOM hanya untuk SKU yang valid di master produk."
+                })
+
+    # 5. Anomalies check
+    if "sales" in data and not data["sales"].empty:
+        sales_df = data["sales"]
+        if "qty" in sales_df.columns:
+            bad_qty = len(sales_df[sales_df["qty"] <= 0])
+            if bad_qty > 0:
+                warnings.append({
+                    "Severity": "🟡 Warning",
+                    "Area": "Nilai Angka",
+                    "Issue": f"Terdapat {bad_qty} transaksi dengan Qty <= 0.",
+                    "Recommendation": "Periksa apakah transaksi tersebut merupakan order retur atau kesalahan input."
+                })
+        if "price" in sales_df.columns:
+            bad_price = len(sales_df[sales_df["price"] <= 0])
+            if bad_price > 0:
+                warnings.append({
+                    "Severity": "🟡 Warning",
+                    "Area": "Nilai Angka",
+                    "Issue": f"Terdapat {bad_price} transaksi dengan Harga Jual <= 0.",
+                    "Recommendation": "Periksa jika ada produk gratis/gift atau kesalahan input nominal."
+                })
+        if "net_margin" in sales_df.columns:
+            bad_margin = len(sales_df[sales_df["net_margin"] < -0.50])
+            if bad_margin > 0:
+                warnings.append({
+                    "Severity": "🟡 Warning",
+                    "Area": "Nilai Angka",
+                    "Issue": f"Terdapat {bad_margin} transaksi dengan margin boncos di bawah -50%.",
+                    "Recommendation": "Periksa apakah alokasi iklan atau diskon terlalu besar pada order ini."
+                })
+
+    # Negative stock
+    if "inventory_products" in data and not data["inventory_products"].empty and "stock" in data["inventory_products"].columns:
+        neg_p = len(data["inventory_products"][data["inventory_products"]["stock"] < 0])
+        if neg_p > 0:
+            errors.append({
+                "Severity": "🔴 Error",
+                "Area": "Nilai Angka",
+                "Issue": f"Terdapat {neg_p} SKU produk jadi dengan stok negatif.",
+                "Recommendation": "Lakukan stock opname fisik untuk memperbaiki stok negatif."
+            })
+            
+    if "inventory_materials" in data and not data["inventory_materials"].empty and "stock" in data["inventory_materials"].columns:
+        neg_m = len(data["inventory_materials"][data["inventory_materials"]["stock"] < 0])
+        if neg_m > 0:
+            errors.append({
+                "Severity": "🔴 Error",
+                "Area": "Nilai Angka",
+                "Issue": f"Terdapat {neg_m} bahan baku dengan stok negatif.",
+                "Recommendation": "Periksa pencatatan mutasi penggunaan bahan baku."
+            })
+
+    # ROAS < 0
+    if "ads" in data and not data["ads"].empty and "roas" in data["ads"].columns:
+        neg_roas = len(data["ads"][data["ads"]["roas"] < 0])
+        if neg_roas > 0:
+            warnings.append({
+                "Severity": "🟡 Warning",
+                "Area": "Nilai Angka",
+                "Issue": f"Terdapat {neg_roas} campaign iklan dengan ROAS negatif.",
+                "Recommendation": "Periksa input pendapatan atau spend iklan agar bernilai positif."
+            })
+
+    # Health Score computation
+    total_errors = len(errors)
+    total_warnings = len(warnings)
+    score = 100
+    score -= total_errors * 10
+    score -= total_warnings * 2
+    score = max(0, min(100, score))
+    
+    # Render KPI cards
+    col_k1, col_k2, col_k3, col_k4 = st.columns(4)
+    with col_k1:
+        st.metric("Kesehatan Data", f"{score}/100")
+    with col_k2:
+        st.metric("Total Error", total_errors)
+    with col_k3:
+        st.metric("Total Warning", total_warnings)
+    with col_k4:
+        st.metric("Rows Checked", rows_checked)
+        
+    st.markdown("---")
+    
+    st.subheader("Daftar Temuan Masalah & Rekomendasi")
+    
+    # Issues Table
+    issues_list = errors + warnings
+    if len(issues_list) == 0:
+        st.success("✅ **Data terlihat sehat untuk demo/operasional awal.** Tidak ditemukan error maupun warning.")
+    else:
+        issues_df = pd.DataFrame(issues_list)
+        render_styled_table(issues_df)
 
 elif page == "Data Dummy":
     st.title("Data Dummy 📁")

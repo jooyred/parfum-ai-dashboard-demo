@@ -24,7 +24,6 @@ def load_bot_data():
             creds_info = secrets.get("google_service_account")
             if sheet_id and creds_info:
                 actual_id = get_sheet_id_from_url(sheet_id)
-                # Load Google Sheets data
                 raw_data = load_google_sheets_data(actual_id, dict(creds_info))
                 is_valid, missing = validate_sheet_tabs(raw_data)
                 if is_valid:
@@ -44,7 +43,6 @@ def is_allowed_user(chat_id: int) -> bool:
     """Check if the given chat_id is whitelisted in ALLOWED_CHAT_IDS."""
     allowed_ids_str = os.getenv("ALLOWED_CHAT_IDS", "")
     if not allowed_ids_str.strip():
-        # Empty whitelist means everyone is allowed for local demo
         return True
     try:
         allowed_ids = [int(x.strip()) for x in allowed_ids_str.split(",") if x.strip()]
@@ -53,7 +51,6 @@ def is_allowed_user(chat_id: int) -> bool:
         print(f"Error parsing ALLOWED_CHAT_IDS: {e}")
         return True
 
-# Decorator or helper check
 def check_permission(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         chat_id = update.effective_chat.id
@@ -64,14 +61,46 @@ def check_permission(func):
         return await func(update, context, *args, **kwargs)
     return wrapper
 
+def get_top_3_actions(data, m, prod_kritis_count, bahan_kritis_count):
+    """Generate 3 urgent actions for summary command."""
+    actions = []
+    
+    # 1. Production check
+    pp = data["production_plan"]
+    need_prod = pp[pp["recommended_production"] > 0]
+    if not need_prod.empty:
+        top_prod = need_prod.sort_values("recommended_production", ascending=False).iloc[0]
+        actions.append(f"Produksi <b>{top_prod['product']}</b> ({int(top_prod['recommended_production'])} pcs).")
+    else:
+        actions.append("Stok produk jadi aman.")
+        
+    # 2. Materials check
+    need_m, suggested_cost = suggested_purchase_value(data["inventory_materials"])
+    if not need_m.empty:
+        mats_list = ", ".join(need_m.head(2)["material"].tolist())
+        actions.append(f"Beli bahan kritis: <b>{mats_list}</b>.")
+    else:
+        actions.append("Stok bahan baku cukup.")
+        
+    # 3. Ads check
+    ads_df = data["ads"]
+    critical_ads = ads_df[ads_df["status"].isin(["Waspada", "Boncos"])]
+    if not critical_ads.empty:
+        ads_list = ", ".join(critical_ads.head(2)["campaign"].tolist())
+        actions.append(f"Evaluasi iklan: <b>{ads_list}</b>.")
+    else:
+        actions.append("Kampanye iklan stabil.")
+        
+    return actions
+
 @check_permission
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /start command."""
     user = update.effective_user.first_name if update.effective_user else "Owner"
     await update.message.reply_text(
-        f"🤖 <b>Bot AI Business Control Tower aktif.</b>\n\n"
-        f"Halo {user}! Saya adalah asisten bot lokal Anda untuk memantau performa bisnis parfum.\n\n"
-        f"Ketik /help untuk melihat daftar menu lengkap dan perintah natural language yang bisa saya jawab.",
+        f"🤖 <b>Bot AI Business Control Tower aktif (V4A).</b>\n\n"
+        f"Halo {user}! Saya siap membantu memantau performa bisnis dan mengambil keputusan harian.\n\n"
+        f"Ketik /help untuk melihat daftar menu lengkap.",
         parse_mode="HTML"
     )
 
@@ -79,22 +108,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /help command."""
     help_text = (
-        "🤖 <b>Daftar Perintah & Fitur Bot:</b>\n\n"
+        "🤖 <b>Daftar Perintah & Fitur Bot (V4A):</b>\n\n"
         "<b>Menu Command:</b>\n"
-        "/summary - Ringkasan performa finansial dan operasional hari ini\n"
-        "/report - Membuat dan mengirimkan Laporan PDF harian\n"
-        "/top_products - Menampilkan 5 produk terlaris hari ini\n"
-        "/stock - Melihat produk yang mengalami stok kritis\n"
-        "/materials - Melihat status bahan baku dan rekomendasi belanja\n"
-        "/production - Melihat rencana dan rekomendasi produksi\n"
-        "/ads - Melihat performa kampanye iklan aktif\n\n"
-        "<b>Contoh Pertanyaan Natural Language (Ketik Biasa):</b>\n"
+        "/owner - 👑 Halaman keputusan harian owner (Control Room)\n"
+        "/summary - 📊 Ringkasan performa finansial & 3 rencana aksi hari ini\n"
+        "/report - 📄 Unduh Laporan PDF Harian secara instan\n"
+        "/top_products - 🏆 Tampilkan 5 produk terlaris hari ini\n"
+        "/stock - ⚠️ Tampilkan produk dengan stok kritis\n"
+        "/materials - 🧪 Tampilkan status bahan baku & rencana belanja\n"
+        "/production - 🏭 Tampilkan rekomendasi rencana produksi\n"
+        "/ads - 📣 Tampilkan performa kampanye iklan aktif\n\n"
+        "<b>Perintah Natural Language (Ketik Biasa):</b>\n"
+        "- <i>apa yang harus dilakukan hari ini</i> atau <i>action plan</i>\n"
         "- <i>profit hari ini</i> atau <i>omzet hari ini</i>\n"
         "- <i>stok kritis</i> atau <i>produk terlaris</i>\n"
-        "- <i>bahan apa yang harus dibeli</i>\n"
-        "- <i>sku mana yang harus diproduksi</i>\n"
-        "- <i>iklan mana yang boncos</i>\n"
-        "- <i>buat laporan</i> atau <i>kirim pdf</i>"
+        "- <i>kirim pdf</i> atau <i>laporan harian</i>"
     )
     await update.message.reply_text(help_text, parse_mode="HTML")
 
@@ -105,6 +133,7 @@ async def summary_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data = load_bot_data()
         sales = data["sales"]
         m = overview_metrics(sales)
+        margin_val = m["margin"]
         
         invp = inventory_product_status(data["inventory_products"])
         stock_critical = len(invp[invp["status"] == "Kritis"])
@@ -112,28 +141,24 @@ async def summary_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         invm = inventory_material_status(data["inventory_materials"])
         materials_critical = len(invm[invm["status"] == "Kritis"])
         
-        # Build insight list
-        insights = []
-        if stock_critical > 0:
-            insights.append(f"⚠️ {stock_critical} SKU produk jadi kritis.")
+        # Business health logic
+        if margin_val < 0.15 or stock_critical > 5 or materials_critical > 12:
+            status_bisnis = "Kritis"
+            status_emoji = "🔴"
+        elif margin_val >= 0.25 and stock_critical <= 3 and materials_critical <= 10:
+            status_bisnis = "Sehat"
+            status_emoji = "🟢"
         else:
-            insights.append("🟢 Stok produk jadi aman.")
+            status_bisnis = "Waspada"
+            status_emoji = "🟡"
             
-        if materials_critical > 0:
-            insights.append(f"⚠️ {materials_critical} bahan baku kritis.")
-        else:
-            insights.append("🟢 Bahan baku mencukupi.")
-            
-        if m['margin'] < 0.2:
-            insights.append("📉 Margin profit di bawah target 20%.")
-        else:
-            insights.append("📈 Margin profit sehat (>= 20%).")
-            
-        insights_str = "\n".join(f"- {ins}" for ins in insights)
+        actions = get_top_3_actions(data, m, stock_critical, materials_critical)
+        actions_str = "\n".join(f"{idx+1}. {act}" for idx, act in enumerate(actions))
 
         text = (
             f"📊 <b>Ringkasan Performa Bisnis</b>\n"
             f"📅 Tanggal: {m['latest_date'].date()}\n\n"
+            f"🏥 <b>Status Bisnis:</b> {status_emoji} <b>{status_bisnis.upper()}</b>\n\n"
             f"💵 <b>Omzet Hari Ini:</b> {rupiah(m['gross'])}\n"
             f"📈 <b>Profit Bersih:</b> {rupiah(m['profit'])}\n"
             f"💰 <b>Margin Bersih:</b> {pct(m['margin'])}\n"
@@ -142,11 +167,118 @@ async def summary_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⚠️ <b>Status Operasional:</b>\n"
             f"- Produk Stok Kritis: {stock_critical} SKU\n"
             f"- Bahan Baku Kritis: {materials_critical} item\n\n"
-            f"💡 <b>Insight Harian:</b>\n{insights_str}"
+            f"🎯 <b>3 Action Plan Hari Ini:</b>\n{actions_str}"
         )
         await update.message.reply_text(text, parse_mode="HTML")
     except Exception as e:
         await update.message.reply_text(f"❌ Terjadi kesalahan saat membaca ringkasan data: {e}")
+
+@check_permission
+async def owner_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /owner command (Owner Control Room)."""
+    try:
+        data = load_bot_data()
+        sales = data["sales"]
+        m = overview_metrics(sales)
+        margin_val = m["margin"]
+        
+        invp = inventory_product_status(data["inventory_products"])
+        critical_products = invp[invp["status"] == "Kritis"]
+        produk_kritis_count = len(critical_products)
+        
+        invm = inventory_material_status(data["inventory_materials"])
+        critical_materials = invm[invm["status"] == "Kritis"]
+        bahan_kritis_count = len(critical_materials)
+        
+        # Business health logic
+        if margin_val < 0.15 or produk_kritis_count > 5 or bahan_kritis_count > 12:
+            status_bisnis = "Kritis"
+            status_emoji = "🔴"
+        elif margin_val >= 0.25 and produk_kritis_count <= 3 and bahan_kritis_count <= 10:
+            status_bisnis = "Sehat"
+            status_emoji = "🟢"
+        else:
+            status_bisnis = "Waspada"
+            status_emoji = "🟡"
+            
+        # 1. Produksi prioritas
+        pp = data["production_plan"]
+        need_prod = pp[pp["recommended_production"] > 0]
+        if not need_prod.empty:
+            top_prod = need_prod.sort_values("recommended_production", ascending=False).iloc[0]
+            prod_info = f"🛠️ <b>{top_prod['product']}</b> (Produksi {int(top_prod['recommended_production'])} pcs)"
+        else:
+            prod_info = "🟢 Aman (Tidak ada antrean produksi)"
+            
+        # 2. Bahan urgent
+        need_m, suggested_cost = suggested_purchase_value(data["inventory_materials"])
+        if not need_m.empty:
+            mats_list = ", ".join(need_m.head(3)["material"].tolist())
+            bahan_info = f"🛍️ <b>{mats_list}</b> (Est: {rupiah(suggested_cost)})"
+        else:
+            bahan_info = "🟢 Aman (Stok bahan mencukupi)"
+            
+        # 3. Iklan dicek
+        ads_df = data["ads"]
+        critical_ads = ads_df[ads_df["status"].isin(["Waspada", "Boncos"])]
+        if not critical_ads.empty:
+            ads_list = ", ".join(critical_ads.head(2)["campaign"].tolist())
+            iklan_info = f"⚠️ <b>{ads_list}</b> (Evaluasi ROAS)"
+        else:
+            iklan_info = "🟢 Sehat (Semua campaign stabil)"
+            
+        # 5 Action points
+        action_plans = []
+        if not need_prod.empty:
+            top_row = need_prod.sort_values("recommended_production", ascending=False).iloc[0]
+            action_plans.append(f"Produksi <b>{top_row['product']}</b> sebanyak {int(top_row['recommended_production'])} pcs.")
+        else:
+            action_plans.append("Jaga stok produk jadi tetap aman.")
+            
+        if not need_m.empty:
+            mats_list = ", ".join(need_m.head(3)["material"].tolist())
+            action_plans.append(f"Belanja bahan kritis: <b>{mats_list}</b> (Est: {rupiah(suggested_cost)}).")
+        else:
+            action_plans.append("Pantau stok bahan baku secara berkala.")
+            
+        if not critical_ads.empty:
+            ads_list = ", ".join(critical_ads["campaign"].tolist())
+            action_plans.append(f"Sesuaikan budget campaign iklan: <b>{ads_list}</b>.")
+        else:
+            action_plans.append("Pertahankan alokasi budget iklan saat ini.")
+            
+        # Top profit product
+        top_prod_df = top_products(sales, latest_only=False)
+        if not top_prod_df.empty:
+            cuan_row = top_prod_df.iloc[0]
+            action_plans.append(f"Push marketing <b>{cuan_row['product']}</b> (Margin: {pct(cuan_row['margin'])}).")
+        else:
+            action_plans.append("Dorong promo penjualan bundling.")
+            
+        action_plans.append("Cross-check fisik stok botol kemasan sebelum SPK produksi.")
+        
+        actions_str = "\n".join(f"{idx+1}. {act}" for idx, act in enumerate(action_plans))
+        
+        text = (
+            f"👑 <b>Owner Control Room - Keputusan Harian</b>\n"
+            f"📅 Tanggal: {m['latest_date'].strftime('%Y-%m-%d')}\n\n"
+            f"🏥 <b>Status Bisnis:</b> {status_emoji} <b>{status_bisnis.upper()}</b>\n\n"
+            f"💵 <b>Keuangan:</b>\n"
+            f"  - Omzet: {rupiah(m['gross'])}\n"
+            f"  - Profit: {rupiah(m['profit'])}\n"
+            f"  - Margin: {pct(margin_val)}\n\n"
+            f"🏭 <b>Produksi Prioritas:</b>\n"
+            f"  {prod_info}\n\n"
+            f"🧪 <b>Belanja Bahan Baku:</b>\n"
+            f"  {bahan_info}\n\n"
+            f"📣 <b>Iklan Perlu Dicek:</b>\n"
+            f"  {iklan_info}\n\n"
+            f"🎯 <b>5 Action Plan Hari Ini:</b>\n"
+            f"{actions_str}"
+        )
+        await update.message.reply_text(text, parse_mode="HTML")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Gagal memuat keputusan owner: {e}")
 
 @check_permission
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -165,7 +297,6 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Gagal membuat laporan: {str(e)}")
     finally:
-        # Clean up sending status message
         try:
             await status_msg.delete()
         except Exception:
@@ -315,13 +446,15 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await production_command(update, context)
     elif any(k in text for k in ["iklan", "ads", "boncos", "roas"]):
         await ads_command(update, context)
+    elif any(k in text for k in ["owner", "keputusan hari ini", "apa yang harus dilakukan", "action plan"]):
+        await owner_command(update, context)
     else:
         await update.message.reply_text(
             "🤖 Saya kurang memahami pesan tersebut.\n\n"
             "Gunakan perintah /help atau tanyakan hal seperti:\n"
+            "- <i>apa yang harus dilakukan hari ini</i>\n"
             "- <i>profit hari ini</i>\n"
             "- <i>stok kritis</i>\n"
-            "- <i>iklan boncos</i>\n"
             "- <i>buat laporan harian</i>",
             parse_mode="HTML"
         )

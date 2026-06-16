@@ -88,9 +88,9 @@ Aplikasi ini dirancang menggunakan path relatif yang aman, sehingga siap dideplo
 
 ---
 
-## 🤖 Telegram Bot (V3B) - Pemantau Bisnis Lokal
+## 🤖 Telegram Bot (V3B & V4A) - Pemantau Bisnis & Keputusan Lokal
 
-Aplikasi ini sekarang terintegrasi dengan **Telegram Bot** agar owner dapat memantau performa bisnis dan mengunduh laporan PDF harian langsung dari Telegram secara real-time (membaca data dari Google Sheets yang sama).
+Aplikasi ini dilengkapi dengan **Telegram Bot** agar owner dapat memantau performa bisnis, melihat keputusan harian (Control Room), dan mengunduh laporan PDF harian langsung dari Telegram secara real-time (membaca data dari Google Sheets yang sama).
 
 ### Cara Menjalankan Bot Telegram Lokal
 1. Ikuti panduan lengkap pembuatan bot di BotFather dan konfigurasinya di berkas [TELEGRAM_BOT_SETUP.md](file:///C:/AI%20PROJECT/parfum_ai_dashboard_demo/TELEGRAM_BOT_SETUP.md).
@@ -100,6 +100,16 @@ Aplikasi ini sekarang terintegrasi dengan **Telegram Bot** agar owner dapat mema
    ```bash
    python telegram_bot.py
    ```
+
+---
+
+## 👑 Fitur V4A - Owner Control Room & Data Health Check
+
+Versi **V4A** ini membawa sistem ke tahap siap operasional untuk owner bisnis parfum:
+1. **Owner Control Room:** Halaman khusus di dashboard yang merangkum kesehatan bisnis (Sehat/Waspada/Kritis), menyajikan 5 kartu keputusan strategis (keuangan, produksi, belanja bahan, iklan, produk ter-cuan), 5 rencana aksi harian otomatis, serta ringkasan siap copy ke WhatsApp.
+2. **Data Health Check:** Halaman khusus untuk memvalidasi kelengkapan tab, format kolom, konsistensi SKU, data kosong, dan mendeteksi anomali angka pada Google Sheets/dummy dengan memberikan Health Score (0-100).
+3. **Refresh Timestamp:** Menampilkan waktu penyegaran data terakhir pada sidebar secara realtime.
+4. **Command Telegram Baru (/owner):** Mengirimkan ringkasan Owner Control Room (Status bisnis, keuangan, prioritas operasional, dan action plan) secara langsung melalui bot Telegram.
 
 ---
 

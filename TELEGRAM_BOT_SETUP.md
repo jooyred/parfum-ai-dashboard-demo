@@ -83,7 +83,8 @@ Buka bot Telegram Anda yang baru saja dibuat, lalu uji perintah-perintah berikut
 ### Menu Command:
 * `/start` - Menampilkan pesan pembuka.
 * `/help` - Menampilkan daftar perintah dan contoh pertanyaan.
-* `/summary` - Menampilkan metrik finansial, omzet, profit, dan status kritis.
+* `/owner` - 👑 Menampilkan ringkasan Owner Control Room (Keputusan harian, keuangan, prioritas, dan 5 rencana aksi).
+* `/summary` - Menampilkan metrik finansial, status bisnis, dan 3 action plan teratas.
 * `/top_products` - Menampilkan 5 produk terlaris hari ini.
 * `/stock` - Menampilkan daftar produk jadi dengan stok kritis.
 * `/materials` - Menampilkan status bahan baku dan nominal rencana belanja.

@@ -23,7 +23,7 @@ def main():
     
     # Import handlers
     from modules.telegram_handlers import (
-        start_command, help_command, summary_command, report_command,
+        start_command, help_command, summary_command, owner_command, report_command,
         top_products_command, stock_command, materials_command,
         production_command, ads_command, text_message_handler
     )
@@ -35,6 +35,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("summary", summary_command))
+    application.add_handler(CommandHandler("owner", owner_command))
     application.add_handler(CommandHandler("report", report_command))
     application.add_handler(CommandHandler("top_products", top_products_command))
     application.add_handler(CommandHandler("stock", stock_command))
