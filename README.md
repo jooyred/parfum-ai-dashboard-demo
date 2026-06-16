@@ -88,6 +88,21 @@ Aplikasi ini dirancang menggunakan path relatif yang aman, sehingga siap dideplo
 
 ---
 
+## 🤖 Telegram Bot (V3B) - Pemantau Bisnis Lokal
+
+Aplikasi ini sekarang terintegrasi dengan **Telegram Bot** agar owner dapat memantau performa bisnis dan mengunduh laporan PDF harian langsung dari Telegram secara real-time (membaca data dari Google Sheets yang sama).
+
+### Cara Menjalankan Bot Telegram Lokal
+1. Ikuti panduan lengkap pembuatan bot di BotFather dan konfigurasinya di berkas [TELEGRAM_BOT_SETUP.md](file:///C:/AI%20PROJECT/parfum_ai_dashboard_demo/TELEGRAM_BOT_SETUP.md).
+2. Buat file `.env` di root project folder Anda.
+3. Masukkan token bot Telegram Anda ke file `.env`.
+4. Jalankan bot melalui terminal Anda (pastikan virtual environment aktif):
+   ```bash
+   python telegram_bot.py
+   ```
+
+---
+
 ## 💡 Catatan Data Source & Keamanan
 *   **Default Data Dummy**: Semua data keuangan, stok produk, bahan baku, HPP/BOM, performa iklan, dan chatbot yang dimuat secara default merupakan data simulasi/dummy yang terletak di folder `data/`.
 *   **Keamanan Data**: Aplikasi ini **tidak** menggunakan atau menyimpan token, API key, kredensial, atau data bisnis nyata secara hardcoded di dalam source code. Data penjualan yang diunggah oleh pengguna (`sales.csv`) hanya diproses di memori RAM server selama sesi peramban berjalan dan tidak disimpan secara permanen, sehingga aman dari risiko kebocoran data.
