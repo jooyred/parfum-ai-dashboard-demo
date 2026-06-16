@@ -1,13 +1,13 @@
-# AI Business Control Tower — Demo Bisnis Parfum (V5B)
+# AI Business Control Tower — Demo Bisnis Parfum (V5C)
 
-Aplikasi dashboard dan chatbot AI interaktif untuk mengontrol performa bisnis parfum, dirancang khusus untuk mempermudah owner memantau keuangan, stok, HPP, produksi, dan kampanye iklan. Versi V5B ini dilengkapi dengan modul laporan keuangan (Laba Rugi) dan **SPT Attachment Pack** (simulasi PPh Final UMKM & PPN) di dashboard dan Telegram Bot.
+Aplikasi dashboard dan chatbot AI interaktif untuk mengontrol performa bisnis parfum, dirancang khusus untuk mempermudah owner memantau keuangan, stok, HPP, produksi, dan kampanye iklan. Versi V5C ini dilengkapi dengan sistem keamanan yang kokoh: **Streamlit login & role permission system**, **Telegram Auto Chat ID Detection & activation code flow**, serta fondasi **Audit Log & Confirmation** di dashboard dan Telegram Bot.
 
 ## 🔗 Live Demo
 Aplikasi ini telah dideploy secara online dan dapat diakses di:
 **[https://parfum-ai-dashboard-demo.streamlit.app/](https://parfum-ai-dashboard-demo.streamlit.app/)**
 
 > [!WARNING]
-> **Catatan Keamanan:** Demo ini menggunakan data dummy secara default. Jangan mengunggah data bisnis real atau sensitif Anda ke demo publik ini sebelum sistem login/autentikasi terintegrasi.
+> **Catatan Keamanan:** Demo ini menggunakan data dummy secara default. Untuk data bisnis real atau sensitif Anda, pastikan sistem login/autentikasi secrets.toml dan .env sudah dikonfigurasi dengan benar. Untuk alur keamanan, lihat [SECURITY_AND_ROLES.md](file:///C:/AI%20PROJECT/parfum_ai_dashboard_demo/SECURITY_AND_ROLES.md).
 
 ---
 
@@ -153,6 +153,21 @@ Versi **V5B** melengkapi modul keuangan dengan template tab terintegrasi dan pak
 6. **Validasi Data Health Check:** Validasi expenses nominal <= 0 (Warning), pembayaran pajak < 0 (Error), key tax_settings penting hilang (Warning), dan format kolom `tax_deductible` (Warning).
 7. **Script QA Otomatis:** File `scripts/qa_v5b_spt_pack.py` untuk menguji fungsionalitas SPT pack secara otomatis tanpa crash.
 8. **Panduan Setup Lengkap:** Selengkapnya di berkas [FINANCE_TAX_SETUP.md](file:///C:/AI%20PROJECT/parfum_ai_dashboard_demo/FINANCE_TAX_SETUP.md).
+
+---
+
+## 🔒 Fitur V5C - Security Foundation
+
+Versi **V5C** menambahkan lapisan otentikasi, otorisasi, manajemen role, dan alur konfirmasi aman:
+1. **Streamlit Login & Role Permissions:** Dashboard menggunakan login username dan PBKDF2 password hash. Menu sidebar disesuaikan berdasarkan role (`owner`, `staff`, `viewer`). Hak akses viewer dibatasi *readonly* dan tidak boleh mengunduh/ekspor laporan sensitif. Jika auth belum dikonfigurasi, dashboard otomatis berjalan dalam *Demo Mode* tanpa crash.
+2. **Telegram Auto Chat ID Detection:** Telegram Bot mendeteksi chat ID pengirim secara otomatis saat mengetik `/start` atau perintah apa pun.
+3. **Setup Mode & Bootstrap:** Jika bot dijalankan pertama kali tanpa owner terdaftar di `.env`, bot otomatis masuk ke *Setup Mode* dan menginstruksikan pengguna untuk menambahkan chat ID mereka ke `OWNER_CHAT_IDS` di `.env`.
+4. **Invite Code & Activation Flow:** Owner dapat membuat kode undangan sekali pakai (misal: `STAFF-XXXXX` atau `VIEWER-YYYYY`) yang berlaku 15 menit menggunakan `/create_invite staff/viewer`. User baru melakukan aktivasi via `/activate KODE`, lalu data disimpan di runtime database (`runtime_bot_settings.json`).
+5. **Manajemen Hak Akses & Revocation:** Owner dapat meninjau user terdaftar lewat `/list_users` dan mencabut akses user runtime lewat `/revoke_user CHAT_ID`. User dari `.env` terlindungi dari penghapusan runtime.
+6. **Command Permissions:** Seluruh command keuangan/pajak (`/finance`, `/tax`, `/tax_report`, `/spt_check`, `/spt_pack`) dan penjadwalan (`/daily_on`, `/closing_on`, dll.) hanya diizinkan untuk role `owner`.
+7. **Audit Log & Confirmation Foundations:** Modul audit log (`modules/audit_log.py`) mencatat riwayat aksi sensitif. Alur konfirmasi ganda (`modules/confirmation.py`) menggunakan kode 6 digit berlaku 10 menit untuk tindakan operasional penting (fitur write-back sheets sengaja belum diaktifkan).
+8. **Script QA Otomatis:** Script `scripts/qa_v5c_security_foundation.py` memvalidasi 16 skenario uji coba otentikasi, otorisasi, dan invite/activation flow secara instan.
+9. **Panduan Keamanan Lengkap:** Selengkapnya di berkas [SECURITY_AND_ROLES.md](file:///C:/AI%20PROJECT/parfum_ai_dashboard_demo/SECURITY_AND_ROLES.md).
 
 ---
 

@@ -76,26 +76,103 @@ def load_bot_data():
         
     return load_data()
 
-def is_allowed_user(chat_id: int) -> bool:
-    """Check if the given chat_id is whitelisted in ALLOWED_CHAT_IDS."""
-    allowed_ids_str = os.getenv("ALLOWED_CHAT_IDS", "")
-    if not allowed_ids_str.strip():
-        return True
-    try:
-        allowed_ids = [int(x.strip()) for x in allowed_ids_str.split(",") if x.strip()]
-        return chat_id in allowed_ids
-    except Exception as e:
-        print(f"Error parsing ALLOWED_CHAT_IDS: {e}")
-        return True
+def is_setup_mode() -> bool:
+    """Check if the bot is in setup mode (no owners configured in env)."""
+    owner_ids_str = os.getenv("OWNER_CHAT_IDS", "")
+    owner_ids = [int(x.strip()) for x in owner_ids_str.split(",") if x.strip()]
+    return len(owner_ids) == 0
+
+def get_user_profile(chat_id: int) -> dict:
+    """
+    Returns user profile: role, authorized, source, display_name.
+    """
+    chat_id_str = str(chat_id)
+    
+    # 1. Check Env
+    owner_ids_str = os.getenv("OWNER_CHAT_IDS", "")
+    staff_ids_str = os.getenv("STAFF_CHAT_IDS", "")
+    viewer_ids_str = os.getenv("VIEWER_CHAT_IDS", "")
+    
+    owner_ids = [int(x.strip()) for x in owner_ids_str.split(",") if x.strip()]
+    staff_ids = [int(x.strip()) for x in staff_ids_str.split(",") if x.strip()]
+    viewer_ids = [int(x.strip()) for x in viewer_ids_str.split(",") if x.strip()]
+    
+    if chat_id in owner_ids:
+        return {"role": "owner", "authorized": True, "source": "env", "display_name": "Owner (Env)"}
+    if chat_id in staff_ids:
+        return {"role": "staff", "authorized": True, "source": "env", "display_name": "Staff (Env)"}
+    if chat_id in viewer_ids:
+        return {"role": "viewer", "authorized": True, "source": "env", "display_name": "Viewer (Env)"}
+        
+    # 2. Check Runtime settings
+    settings = load_settings()
+    auth_users = settings.get("authorized_users", {})
+    if chat_id_str in auth_users:
+        profile = auth_users[chat_id_str]
+        return {
+            "role": profile.get("role"),
+            "authorized": True,
+            "source": "runtime",
+            "display_name": profile.get("display_name", f"User {chat_id}"),
+            "activated_at": profile.get("activated_at")
+        }
+        
+    return {"role": None, "authorized": False}
 
 def check_permission(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         chat_id = update.effective_chat.id
-        if not is_allowed_user(chat_id):
-            print(f"Blocked unauthorized access from Chat ID: {chat_id}")
-            await update.message.reply_text("❌ Maaf, Anda tidak memiliki akses ke bot ini.")
+        
+        if is_setup_mode():
+            await update.message.reply_text(
+                f"🤖 **Bot Setup Mode**\n\n"
+                f"OWNER_CHAT_IDS belum dikonfigurasi di file .env.\n"
+                f"Chat ID Anda: <code>{chat_id}</code>\n\n"
+                f"Silakan masukkan chat ID ini ke OWNER_CHAT_IDS di file .env, lalu restart bot.",
+                parse_mode="HTML"
+            )
             return
-        return await func(update, context, *args, **kwargs)
+            
+        profile = get_user_profile(chat_id)
+        if not profile["authorized"]:
+            await update.message.reply_text(
+                f"❌ **Akun Telegram Anda belum aktif.**\n\n"
+                f"Minta kode aktivasi dari owner, lalu kirim:\n"
+                f"<code>/activate KODE</code>\n\n"
+                f"Chat ID Anda: <code>{chat_id}</code>",
+                parse_mode="HTML"
+            )
+            return
+            
+        role = profile["role"]
+        func_name = func.__name__
+        
+        # Owner bypass
+        if role == "owner":
+            return await func(update, context, *args, **kwargs)
+            
+        # Allowed staff commands
+        allowed_staff = [
+            "start_command", "help_command", "summary_command", "owner_command",
+            "report_command", "top_products_command", "stock_command", "materials_command",
+            "production_command", "ads_command", "alert_check_command"
+        ]
+        
+        # Allowed viewer commands
+        allowed_viewer = [
+            "start_command", "help_command", "summary_command", "owner_command"
+        ]
+        
+        if role == "staff" and func_name in allowed_staff:
+            return await func(update, context, *args, **kwargs)
+            
+        if role == "viewer" and func_name in allowed_viewer:
+            return await func(update, context, *args, **kwargs)
+            
+        # Access Denied
+        await update.message.reply_text("Maaf, role Anda tidak memiliki akses ke perintah ini.")
+        return
+        
     return wrapper
 
 def get_top_3_actions(data, m, prod_kritis_count, bahan_kritis_count):
@@ -295,6 +372,10 @@ async def schedule_loop(application):
                 targets = settings["target_chats"]
                 
             if targets:
+                # Filter to only authorized users
+                targets = [cid for cid in targets if get_user_profile(cid)["authorized"]]
+                
+            if targets:
                 # 1. Daily Report Check
                 if settings["daily_enabled"] and current_time_str == settings["daily_time"] and settings["last_daily_run"] != current_date_str:
                     print(f"Scheduler: Triggering daily report at {current_time_str} to targets {targets}")
@@ -319,43 +400,341 @@ async def schedule_loop(application):
 @check_permission
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /start command."""
-    user = update.effective_user.first_name if update.effective_user else "Owner"
-    await update.message.reply_text(
-        f"🤖 <b>Bot AI Business Control Tower aktif (V5A).</b>\n\n"
-        f"Halo {user}! Saya siap memantau performa bisnis, keuangan, perpajakan, dan mengirim laporan berkala.\n\n"
-        f"Ketik /help untuk daftar perintah lengkap.",
-        parse_mode="HTML"
-    )
+    chat_id = update.effective_chat.id
+    user_name = update.effective_user.username if update.effective_user and update.effective_user.username else ""
+    first_name = update.effective_user.first_name if update.effective_user else "User"
+    last_name = update.effective_user.last_name if update.effective_user else ""
+    full_name = f"{first_name} {last_name}".strip()
+    
+    # Check setup mode
+    if is_setup_mode():
+        await update.message.reply_text(
+            f"🤖 **Bot Setup Mode**\n\n"
+            f"OWNER_CHAT_IDS belum dikonfigurasi di file .env.\n"
+            f"Chat ID Anda: <code>{chat_id}</code>\n\n"
+            f"Silakan masukkan chat ID ini ke OWNER_CHAT_IDS di file .env, lalu restart bot.",
+            parse_mode="HTML"
+        )
+        return
+        
+    profile = get_user_profile(chat_id)
+    if profile["authorized"]:
+        role = profile["role"]
+        await update.message.reply_text(
+            f"🤖 **Bot AI Business Control Tower aktif (V5C).**\n\n"
+            f"Halo {full_name}!\n"
+            f"Role Anda: **{role.upper()}**\n\n"
+            f"Ketik /help untuk melihat menu perintah yang tersedia sesuai hak akses Anda.",
+            parse_mode="HTML"
+        )
+    else:
+        await update.message.reply_text(
+            f"❌ **Akun Telegram Anda belum aktif.**\n\n"
+            f"Minta kode aktivasi dari owner, lalu kirim:\n"
+            f"<code>/activate KODE</code>\n\n"
+            f"Chat ID Anda: <code>{chat_id}</code>",
+            parse_mode="HTML"
+        )
 
 @check_permission
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for /help command."""
-    help_text = (
-        "🤖 <b>Daftar Perintah & Fitur Bot (V5A):</b>\n\n"
-        "<b>Menu Keuangan & Pajak (Finance & Tax):</b>\n"
-        "/finance - 📊 Ringkasan laporan laba rugi tahun ini\n"
-        "/tax - 🧾 Simulasi PPh Final UMKM & readiness PPN\n"
-        "/tax_report - 📄 Download PDF Laporan Keuangan & Pajak\n"
-        "/spt_check - 📋 Checklist dokumen pelaporan SPT Tahunan\n\n"
-        "<b>Menu Command Inti:</b>\n"
-        "/owner - 👑 Halaman keputusan harian owner (Control Room)\n"
-        "/summary - 📊 Ringkasan finansial & action plan hari ini\n"
-        "/report - 📄 Unduh Laporan PDF harian secara instan\n"
-        "/alert_check - 🚨 Cek operasional dan kirim alert\n\n"
-        "<b>Jadwal & Laporan Otomatis:</b>\n"
-        "/daily_on | /daily_off - Aktif/nonaktifkan laporan otomatis harian\n"
-        "/set_daily_time HH:MM - Atur jam laporan harian (default 08:00)\n"
-        "/closing_on | /closing_off - Aktif/nonaktifkan closing report sore\n"
-        "/set_closing_time HH:MM - Atur jam closing sore (default 17:00)\n"
-        "/schedule_status - Tampilkan status penjadwalan & chat target\n"
-        "/send_now - Kirim laporan harian & PDF sekarang juga\n\n"
-        "<b>Menu Detail Lainnya:</b>\n"
-        "/top_products, /stock, /materials, /production, /ads\n\n"
-        "<b>NLP Command (Ketik Biasa):</b>\n"
-        "- <i>laporan keuangan tahun ini</i>\n"
-        "- <i>simulasi pajak bisnis</i> | <i>checklist spt</i>"
+    chat_id = update.effective_chat.id
+    
+    if is_setup_mode():
+        await update.message.reply_text("Bot dalam setup mode. Konfigurasikan OWNER_CHAT_IDS di .env.")
+        return
+        
+    profile = get_user_profile(chat_id)
+    if not profile["authorized"]:
+        await update.message.reply_text("Akun Anda belum aktif. Kirim /activate KODE untuk aktivasi.")
+        return
+        
+    role = profile["role"]
+    
+    # Render help text based on role
+    lines = [f"🤖 **Daftar Perintah Bot ({role.upper()}):**\n"]
+    
+    # Viewer commands (all roles have these)
+    lines.append("📊 **Menu Umum / Viewer:**")
+    lines.append("/start - Menampilkan role dan pesan awal")
+    lines.append("/help - Menampilkan panduan perintah")
+    lines.append("/summary - Ringkasan performa finansial hari ini")
+    lines.append("/owner - Rangkuman Owner Control Room & Action Plan\n")
+    
+    if role in ["staff", "owner"]:
+        lines.append("📦 **Menu Operasional / Staff:**")
+        lines.append("/report - Unduh PDF Laporan Harian")
+        lines.append("/top_products - 5 produk terlaris hari ini")
+        lines.append("/stock - Status stok produk kritis")
+        lines.append("/materials - Status bahan baku & belanja")
+        lines.append("/production - Rekomendasi prioritas produksi")
+        lines.append("/ads - Performa kampanye iklan")
+        lines.append("/alert_check - Deteksi anomali operasional\n")
+        
+    if role == "owner":
+        lines.append("💰 **Menu Keuangan & Pajak (Owner Only):**")
+        lines.append("/finance - Ringkasan laba rugi tahun ini")
+        lines.append("/tax - Simulasi PPh & PPN tahun ini")
+        lines.append("/tax_report - Unduh PDF Laporan Keuangan & Pajak")
+        lines.append("/spt_check - Checklist kelengkapan berkas SPT")
+        lines.append("/spt_pack - Unduh PDF Paket Lampiran SPT\n")
+        
+        lines.append("⏰ **Menu Penjadwalan Laporan (Owner Only):**")
+        lines.append("/daily_on - Aktifkan daily report otomatis")
+        lines.append("/daily_off - Matikan daily report otomatis")
+        lines.append("/set_daily_time HH:MM - Atur jam laporan harian")
+        lines.append("/closing_on - Aktifkan closing report sore")
+        lines.append("/closing_off - Matikan closing report sore")
+        lines.append("/set_closing_time HH:MM - Atur jam closing report")
+        lines.append("/schedule_status - Cek status jadwal aktif")
+        lines.append("/send_now - Kirim report otomatis sekarang\n")
+        
+        lines.append("🔑 **Menu Manajemen Akses (Owner Only):**")
+        lines.append("/create_invite staff - Buat kode invite staff (15 mnt)")
+        lines.append("/create_invite viewer - Buat kode invite viewer (15 mnt)")
+        lines.append("/list_users - Daftar user terdaftar")
+        lines.append("/revoke_user CHAT_ID - Hapus akses user runtime")
+        
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+@check_permission
+async def create_invite_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /create_invite command."""
+    chat_id = update.effective_chat.id
+    profile = get_user_profile(chat_id)
+    if profile.get("role") != "owner":
+        await update.message.reply_text("Maaf, role Anda tidak memiliki akses ke perintah ini.")
+        return
+        
+    # Check argument
+    if not context.args or context.args[0].lower() not in ["staff", "viewer"]:
+        await update.message.reply_text("Gunakan format: /create_invite staff atau /create_invite viewer")
+        return
+        
+    role = context.args[0].lower()
+    
+    # Generate random invite code: E.g., STAFF-7K29Q
+    import random
+    import string
+    import time
+    
+    suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
+    code = f"{role.upper()}-{suffix}"
+    expires_at = time.time() + 900 # 15 minutes
+    
+    settings = load_settings()
+    invite_codes = settings.get("invite_codes", {})
+    invite_codes[code] = {
+        "role": role,
+        "expires_at": expires_at,
+        "used": False
+    }
+    settings["invite_codes"] = invite_codes
+    save_settings(settings)
+    
+    await update.message.reply_text(
+        f"🔑 **Kode Aktivasi Baru Dibuat**\n\n"
+        f"Kode: <code>{code}</code>\n"
+        f"Role: **{role.upper()}**\n"
+        f"Berlaku selama: 15 menit\n\n"
+        f"Kirimkan kode ini ke user baru untuk dijalankan via Telegram mereka.",
+        parse_mode="HTML"
     )
-    await update.message.reply_text(help_text, parse_mode="HTML")
+
+async def activate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /activate KODE command."""
+    chat_id = update.effective_chat.id
+    chat_id_str = str(chat_id)
+    
+    if is_setup_mode():
+        await update.message.reply_text("Bot dalam setup mode. Konfigurasikan OWNER_CHAT_IDS di .env.")
+        return
+        
+    profile = get_user_profile(chat_id)
+    if profile["authorized"]:
+        await update.message.reply_text(f"Akun Anda sudah aktif dengan role: **{profile['role'].upper()}**.")
+        return
+        
+    if not context.args:
+        await update.message.reply_text("Gunakan format: /activate KODE")
+        return
+        
+    input_code = context.args[0].strip()
+    
+    settings = load_settings()
+    invite_codes = settings.get("invite_codes", {})
+    
+    if input_code not in invite_codes:
+        await update.message.reply_text("Kode aktivasi tidak valid.")
+        return
+        
+    code_info = invite_codes[input_code]
+    import time
+    
+    if code_info.get("used"):
+        await update.message.reply_text("Kode aktivasi ini sudah pernah digunakan.")
+        return
+        
+    if time.time() > code_info.get("expires_at"):
+        await update.message.reply_text("Kode aktivasi ini telah kedaluwarsa (berlaku 15 menit).")
+        return
+        
+    # Valid activation!
+    role = code_info["role"]
+    code_info["used"] = True
+    
+    # Save user to authorized_users
+    auth_users = settings.get("authorized_users", {})
+    
+    user_name = update.effective_user.username if update.effective_user and update.effective_user.username else ""
+    first_name = update.effective_user.first_name if update.effective_user else ""
+    last_name = update.effective_user.last_name if update.effective_user else ""
+    display_name = f"{first_name} {last_name}".strip()
+    if not display_name:
+        display_name = f"User {chat_id}"
+    if user_name:
+        display_name += f" (@{user_name})"
+        
+    auth_users[chat_id_str] = {
+        "role": role,
+        "username": user_name,
+        "display_name": display_name,
+        "activated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    settings["invite_codes"] = invite_codes
+    settings["authorized_users"] = auth_users
+    save_settings(settings)
+    
+    await update.message.reply_text(
+        f"✅ **Aktivasi Berhasil!**\n\n"
+        f"Akun Anda telah diaktifkan dengan role: **{role.upper()}**.\n"
+        f"Ketik /help untuk panduan menu yang dapat Anda akses.",
+        parse_mode="HTML"
+    )
+
+@check_permission
+async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /list_users command."""
+    chat_id = update.effective_chat.id
+    profile = get_user_profile(chat_id)
+    if profile.get("role") != "owner":
+        await update.message.reply_text("Maaf, role Anda tidak memiliki akses ke perintah ini.")
+        return
+        
+    settings = load_settings()
+    auth_users = settings.get("authorized_users", {})
+    
+    # Load env lists
+    owner_ids = [int(x.strip()) for x in os.getenv("OWNER_CHAT_IDS", "").split(",") if x.strip()]
+    staff_ids = [int(x.strip()) for x in os.getenv("STAFF_CHAT_IDS", "").split(",") if x.strip()]
+    viewer_ids = [int(x.strip()) for x in os.getenv("VIEWER_CHAT_IDS", "").split(",") if x.strip()]
+    
+    lines = ["👤 **Daftar User Terdaftar & Authorized:**\n"]
+    
+    # 1. Env Users
+    lines.append("🔌 **Dari Berkas .env (Permanen):**")
+    for oid in owner_ids:
+        lines.append(f"• <code>{oid}</code> | Role: **OWNER** | Source: env")
+    for sid in staff_ids:
+        lines.append(f"• <code>{sid}</code> | Role: **STAFF** | Source: env")
+    for vid in viewer_ids:
+        lines.append(f"• <code>{vid}</code> | Role: **VIEWER** | Source: env")
+        
+    # 2. Runtime Users
+    lines.append("\n💾 **Dari Runtime Activation (Bisa Dihapus):**")
+    if not auth_users:
+        lines.append("• _Tidak ada user runtime yang aktif._")
+    else:
+        for u_id_str, u_profile in auth_users.items():
+            lines.append(
+                f"• <code>{u_id_str}</code> | Role: **{u_profile.get('role').upper()}** | "
+                f"Name: {u_profile.get('display_name')} | Active at: {u_profile.get('activated_at')}"
+            )
+            
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+@check_permission
+async def revoke_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /revoke_user CHAT_ID command."""
+    chat_id = update.effective_chat.id
+    profile = get_user_profile(chat_id)
+    if profile.get("role") != "owner":
+        await update.message.reply_text("Maaf, role Anda tidak memiliki akses ke perintah ini.")
+        return
+        
+    if not context.args:
+        await update.message.reply_text("Gunakan format: /revoke_user CHAT_ID")
+        return
+        
+    target_chat_id_str = context.args[0].strip()
+    
+    # Check if target is in .env
+    try:
+        target_chat_id = int(target_chat_id_str)
+    except ValueError:
+        await update.message.reply_text("CHAT_ID harus berupa angka.")
+        return
+        
+    # Load env lists
+    owner_ids = [int(x.strip()) for x in os.getenv("OWNER_CHAT_IDS", "").split(",") if x.strip()]
+    staff_ids = [int(x.strip()) for x in os.getenv("STAFF_CHAT_IDS", "").split(",") if x.strip()]
+    viewer_ids = [int(x.strip()) for x in os.getenv("VIEWER_CHAT_IDS", "").split(",") if x.strip()]
+    
+    if target_chat_id in (owner_ids + staff_ids + viewer_ids):
+        await update.message.reply_text("User dari .env tidak bisa dihapus via runtime; silakan hapus langsung dari file .env.")
+        return
+        
+    settings = load_settings()
+    auth_users = settings.get("authorized_users", {})
+    
+    if target_chat_id_str not in auth_users:
+        await update.message.reply_text("User tidak ditemukan di daftar runtime.")
+        return
+        
+    # Delete target
+    del auth_users[target_chat_id_str]
+    settings["authorized_users"] = auth_users
+    save_settings(settings)
+    
+    await update.message.reply_text(f"✅ User dengan Chat ID <code>{target_chat_id_str}</code> berhasil dicabut aksesnya.", parse_mode="HTML")
+
+@check_permission
+async def confirm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /confirm KODE command."""
+    chat_id = update.effective_chat.id
+    if not context.args:
+        await update.message.reply_text("Gunakan format: /confirm KODE")
+        return
+        
+    code = context.args[0].strip()
+    from modules.confirmation import confirm_pending_action
+    
+    is_valid, action_type, payload, msg = confirm_pending_action(chat_id, code)
+    if is_valid:
+        await update.message.reply_text(
+            f"✅ **Tindakan Disetujui (Simulasi)**\n\n"
+            f"Tipe: {action_type}\n"
+            f"Payload: <code>{payload}</code>\n\n"
+            f"Status: {msg}\n"
+            f"_(Catatan: Write-back ke Google Sheets belum aktif pada versi ini)_",
+            parse_mode="HTML"
+        )
+    else:
+        await update.message.reply_text(f"❌ **Konfirmasi Gagal**\n\n{msg}")
+
+@check_permission
+async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for /cancel command."""
+    chat_id = update.effective_chat.id
+    from modules.confirmation import cancel_pending_action
+    
+    success, msg = cancel_pending_action(chat_id)
+    if success:
+        await update.message.reply_text(f"✅ {msg}")
+    else:
+        await update.message.reply_text(f"❌ {msg}")
 
 @check_permission
 async def summary_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -955,9 +1334,27 @@ async def ads_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Router for normal text based queries to command mappings."""
     chat_id = update.effective_chat.id
-    if not is_allowed_user(chat_id):
+    
+    if is_setup_mode():
+        await update.message.reply_text(
+            f"🤖 **Bot Setup Mode**\n\n"
+            f"OWNER_CHAT_IDS belum dikonfigurasi di file .env.\n"
+            f"Chat ID Anda: <code>{chat_id}</code>\n\n"
+            f"Silakan masukkan chat ID ini ke OWNER_CHAT_IDS di file .env, lalu restart bot.",
+            parse_mode="HTML"
+        )
+        return
+        
+    profile = get_user_profile(chat_id)
+    if not profile["authorized"]:
         print(f"Blocked unauthorized message from Chat ID: {chat_id}")
-        await update.message.reply_text("❌ Maaf, Anda tidak memiliki akses ke bot ini.")
+        await update.message.reply_text(
+            f"❌ **Akun Telegram Anda belum aktif.**\n\n"
+            f"Minta kode aktivasi dari owner, lalu kirim:\n"
+            f"<code>/activate KODE</code>\n\n"
+            f"Chat ID Anda: <code>{chat_id}</code>",
+            parse_mode="HTML"
+        )
         return
 
     text = update.message.text.lower().strip()

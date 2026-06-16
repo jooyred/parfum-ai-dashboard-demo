@@ -141,6 +141,62 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 if "uploaded_sales" not in st.session_state:
     st.session_state["uploaded_sales"] = None
 
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "username" not in st.session_state:
+    st.session_state["username"] = None
+if "role" not in st.session_state:
+    st.session_state["role"] = None
+if "display_name" not in st.session_state:
+    st.session_state["display_name"] = None
+
+import hashlib
+
+def hash_password(password: str) -> str:
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode(), b"parfum_ai_secure_salt", 100000)
+    return dk.hex()
+
+def verify_password(stored_hash: str, password: str) -> bool:
+    return hash_password(password) == stored_hash
+
+has_auth = "auth_users" in st.secrets
+
+if not has_auth:
+    st.warning("⚠️ Auth belum dikonfigurasi. App berjalan dalam mode demo.")
+    st.session_state["authenticated"] = True
+    # Let user select role in sidebar
+    st.sidebar.markdown("### 🛠️ Demo Mode Controls")
+    demo_role = st.sidebar.selectbox("Pilih Role (Demo)", ["owner", "staff", "viewer"], key="demo_role_selection")
+    st.session_state["role"] = demo_role
+    st.session_state["display_name"] = f"Demo {demo_role.capitalize()}"
+    st.session_state["username"] = f"demo_{demo_role}"
+else:
+    if not st.session_state.get("authenticated"):
+        st.subheader("🧴 AI Business Control Tower - Login")
+        with st.form("login_form"):
+            username_input = st.text_input("Username")
+            password_input = st.text_input("Password", type="password")
+            submit_login = st.form_submit_button("Masuk", use_container_width=True)
+            
+            if submit_login:
+                # Iterate and find username
+                found_user = None
+                for key, user_cfg in st.secrets["auth_users"].items():
+                    if user_cfg.get("username") == username_input:
+                        found_user = user_cfg
+                        break
+                
+                if found_user and verify_password(found_user.get("password_hash"), password_input):
+                    st.session_state["authenticated"] = True
+                    st.session_state["username"] = found_user.get("username")
+                    st.session_state["role"] = found_user.get("role")
+                    st.session_state["display_name"] = found_user.get("display_name", username_input.capitalize())
+                    st.success("Login sukses!")
+                    st.rerun()
+                else:
+                    st.error("Username atau password salah.")
+        st.stop()
+
 # PDF Session States
 if "daily_pdf_bytes" not in st.session_state:
     st.session_state["daily_pdf_bytes"] = None
@@ -267,9 +323,21 @@ with st.sidebar:
     st.markdown("### Control Tower")
     st.caption("Demo Bisnis Parfum V2")
     
-    page = st.radio(
-        "Navigasi",
-        [
+    st.markdown(f"👤 **{st.session_state.get('display_name')}** ({st.session_state.get('role', 'viewer').upper()})")
+    
+    if has_auth:
+        if st.button("Logout 🚪", use_container_width=True, key="app_logout_btn"):
+            st.session_state["authenticated"] = False
+            st.session_state["username"] = None
+            st.session_state["role"] = None
+            st.session_state["display_name"] = None
+            st.rerun()
+            
+    st.markdown("---")
+    
+    role = st.session_state.get("role", "viewer")
+    allowed_pages = {
+        "owner": [
             "Owner Control Room",
             "Dashboard Overview",
             "Stok, HPP & Produksi",
@@ -280,8 +348,36 @@ with st.sidebar:
             "Data Health Check",
             "Data Dummy"
         ],
+        "staff": [
+            "Owner Control Room",
+            "Dashboard Overview",
+            "Stok, HPP & Produksi",
+            "Chatbot AI Bisnis",
+            "Laporan Harian",
+            "Setup Data",
+            "Data Health Check",
+            "Data Dummy"
+        ],
+        "viewer": [
+            "Owner Control Room",
+            "Dashboard Overview",
+            "Laporan Harian",
+            "Data Health Check"
+        ]
+    }
+    
+    page_options = allowed_pages.get(role, ["Dashboard Overview"])
+    
+    page = st.radio(
+        "Navigasi",
+        page_options,
         label_visibility="collapsed"
     )
+    
+    if page not in allowed_pages.get(role, []):
+        st.error("Akses ditolak untuk role Anda.")
+        st.stop()
+        
     st.markdown("---")
     
     # Data source status indicator in sidebar
@@ -504,13 +600,16 @@ if page == "Owner Control Room":
             
         st.text_area("WhatsApp Copy-Paste", value=summary_text, height=200, label_visibility="collapsed")
         
-        st.download_button(
-            "📥 Unduh Ringkasan Owner (.txt)",
-            summary_text,
-            file_name="owner_summary_harian.txt",
-            mime="text/plain",
-            use_container_width=True
-        )
+        if st.session_state.get("role") != "viewer":
+            st.download_button(
+                "📥 Unduh Ringkasan Owner (.txt)",
+                summary_text,
+                file_name="owner_summary_harian.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
+        else:
+            st.info("ℹ️ Mode Readonly: Ekspor ringkasan dinonaktifkan untuk role Viewer.")
 
 elif page == "Dashboard Overview":
     st.title("Dashboard Overview 📊")
@@ -827,38 +926,41 @@ elif page == "Laporan Harian":
     report = daily_report(data)
     st.text_area("Preview Laporan (Text)", report, height=480)
     
-    c_l1, c_l2 = st.columns(2)
-    with c_l1:
-        st.download_button(
-            label="📥 Download Laporan (TXT)",
-            data=report,
-            file_name="laporan_harian_bisnis_parfum.txt",
-            mime="text/plain",
-            use_container_width=True
-        )
-    with c_l2:
-        if st.session_state["daily_pdf_ready"]:
+    if st.session_state.get("role") != "viewer":
+        c_l1, c_l2 = st.columns(2)
+        with c_l1:
             st.download_button(
-                label="📥 Download Laporan (PDF)",
-                data=st.session_state["daily_pdf_bytes"],
-                file_name=st.session_state["daily_pdf_filename"],
-                mime="application/pdf",
-                use_container_width=True,
-                key="download_pdf_report_daily"
+                label="📥 Download Laporan (TXT)",
+                data=report,
+                file_name="laporan_harian_bisnis_parfum.txt",
+                mime="text/plain",
+                use_container_width=True
             )
-            if st.button("Buat Ulang PDF", key="regenerate_pdf_report_daily", use_container_width=True):
-                st.session_state["daily_pdf_ready"] = False
-                st.session_state["daily_pdf_bytes"] = None
-                st.rerun()
-        else:
-            if st.button("Generate PDF Report", key="generate_pdf_report_daily", use_container_width=True):
-                m = overview_metrics(data["sales"])
-                pdf_bytes = generate_daily_pdf_report(data)
-                st.session_state["daily_pdf_bytes"] = pdf_bytes
-                st.session_state["daily_pdf_ready"] = True
-                st.session_state["daily_pdf_filename"] = f"laporan_harian_bisnis_parfum_{m['latest_date'].date()}.pdf"
-                st.success("PDF berhasil dibuat. Silakan klik Download Laporan (PDF) di atas.")
-                st.rerun()
+        with c_l2:
+            if st.session_state["daily_pdf_ready"]:
+                st.download_button(
+                    label="📥 Download Laporan (PDF)",
+                    data=st.session_state["daily_pdf_bytes"],
+                    file_name=st.session_state["daily_pdf_filename"],
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="download_pdf_report_daily"
+                )
+                if st.button("Buat Ulang PDF", key="regenerate_pdf_report_daily", use_container_width=True):
+                    st.session_state["daily_pdf_ready"] = False
+                    st.session_state["daily_pdf_bytes"] = None
+                    st.rerun()
+            else:
+                if st.button("Generate PDF Report", key="generate_pdf_report_daily", use_container_width=True):
+                    m = overview_metrics(data["sales"])
+                    pdf_bytes = generate_daily_pdf_report(data)
+                    st.session_state["daily_pdf_bytes"] = pdf_bytes
+                    st.session_state["daily_pdf_ready"] = True
+                    st.session_state["daily_pdf_filename"] = f"laporan_harian_bisnis_parfum_{m['latest_date'].date()}.pdf"
+                    st.success("PDF berhasil dibuat. Silakan klik Download Laporan (PDF) di atas.")
+                    st.rerun()
+    else:
+        st.info("ℹ️ Mode Readonly: Unduh laporan PDF/TXT dinonaktifkan untuk role Viewer.")
 
 elif page == "Setup Data":
     st.title("Setup Data ⚙️")

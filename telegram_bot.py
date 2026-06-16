@@ -35,7 +35,9 @@ def main():
         schedule_status_command, send_now_command,
         finance_command, tax_command, tax_report_command, spt_check_command, spt_pack_command,
         top_products_command, stock_command, materials_command,
-        production_command, ads_command, text_message_handler
+        production_command, ads_command, text_message_handler,
+        create_invite_command, activate_command, list_users_command, revoke_user_command,
+        confirm_command, cancel_command
     )
     
     # Build application with post_init hook
@@ -70,6 +72,14 @@ def main():
     application.add_handler(CommandHandler("materials", materials_command))
     application.add_handler(CommandHandler("production", production_command))
     application.add_handler(CommandHandler("ads", ads_command))
+    
+    # Register new security-related handlers
+    application.add_handler(CommandHandler("create_invite", create_invite_command))
+    application.add_handler(CommandHandler("activate", activate_command))
+    application.add_handler(CommandHandler("list_users", list_users_command))
+    application.add_handler(CommandHandler("revoke_user", revoke_user_command))
+    application.add_handler(CommandHandler("confirm", confirm_command))
+    application.add_handler(CommandHandler("cancel", cancel_command))
     
     # Handle normal text messages
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))

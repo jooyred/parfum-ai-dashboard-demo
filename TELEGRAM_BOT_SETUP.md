@@ -24,33 +24,53 @@ Untuk mengaktifkan Telegram Bot, Anda memerlukan token HTTP API dari Telegram.
 1. Di root project folder (`C:\AI PROJECT\parfum_ai_dashboard_demo`), temukan file template `.env.example`.
 2. Buat duplikat file tersebut (copy & paste) lalu ubah namanya menjadi **`.env`**.
 3. Buka file `.env` menggunakan Notepad atau editor teks pilihan Anda.
-4. Masukkan token Telegram Bot Anda pada baris `TELEGRAM_BOT_TOKEN`:
+4. Masukkan konfigurasi Telegram Bot Anda:
    ```env
    TELEGRAM_BOT_TOKEN=1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ
-   ALLOWED_CHAT_IDS=
+   OWNER_CHAT_IDS=
+   STAFF_CHAT_IDS=
+   VIEWER_CHAT_IDS=
    ```
 5. Simpan file tersebut. File `.env` ini secara otomatis sudah dimasukkan ke `.gitignore` sehingga aman dan tidak akan ter-commit ke Git.
 
 ---
 
-## 3. Cara Mendapatkan Chat ID & Mengisi Whitelist (`ALLOWED_CHAT_IDS`)
-Untuk alasan keamanan data, Anda dapat membatasi akses bot agar hanya membalas Chat ID Anda sendiri (atau tim tertentu).
+## 3. Cara Bootstrap Owner Pertama & Mengisi Chat ID
+Untuk mempermudah setup tanpa mencari Chat ID secara manual, ikuti alur **Auto Chat ID Detection**:
 
-### Cara mendapatkan Chat ID Anda:
-1. Cari user **`@userinfobot`** di Telegram Anda.
-2. Klik **Start**. Bot tersebut akan membalas dengan menampilkan **Id** Anda (berupa baris angka unik, misal: `987654321`).
-3. Salin angka tersebut.
+1. Pastikan berkas `.env` sudah dibuat dengan baris `OWNER_CHAT_IDS` dikosongkan.
+2. Jalankan bot secara lokal:
+   ```bash
+   python telegram_bot.py
+   ```
+3. Buka Telegram, cari bot Anda, dan klik atau kirim perintah `/start`.
+4. Bot akan mendeteksi bahwa belum ada owner yang terdaftar, lalu otomatis masuk ke **Setup Mode** dan membalas chat Anda:
+   > 🤖 **Bot Setup Mode**  
+   > OWNER_CHAT_IDS belum dikonfigurasi di file .env.  
+   > Chat ID Anda: `987654321`  
+   > Silakan masukkan chat ID ini ke OWNER_CHAT_IDS di file .env, lalu restart bot.
+5. Salin Chat ID Anda (`987654321`), lalu masukkan ke berkas `.env` Anda:
+   ```env
+   OWNER_CHAT_IDS=987654321
+   ```
+6. Hentikan bot (tekan `Ctrl+C` di terminal) dan jalankan kembali: `python telegram_bot.py`.
+7. Sekarang Anda telah resmi terdaftar sebagai **Owner Utama** permanen.
 
-### Mengisi Whitelist di `.env`:
-* Jika baris `ALLOWED_CHAT_IDS` dikosongkan (default), bot akan merespon semua orang yang mencoba menggunakan bot Anda (berguna untuk demo lokal).
-* Jika Anda ingin membatasi akses hanya untuk Anda saja, masukkan Chat ID ke dalam file `.env`:
-  ```env
-  ALLOWED_CHAT_IDS=987654321
-  ```
-* Jika ada beberapa user, pisahkan dengan koma:
-  ```env
-  ALLOWED_CHAT_IDS=987654321,11223344
-  ```
+---
+
+## 4. Alur Mengundang Staff & Viewer Baru
+Setelah Owner Utama terdaftar, Anda tidak perlu meminta staff atau viewer mencari Chat ID mereka secara manual. Cukup gunakan alur undang-aktivasi:
+
+1. **Owner membuat kode undangan** di Telegram Bot dengan mengetik:
+   * `/create_invite staff` (untuk mendaftarkan Staff) -> menghasilkan kode contoh: `STAFF-7K29Q`
+   * `/create_invite viewer` (untuk mendaftarkan Viewer) -> menghasilkan kode contoh: `VIEWER-3P10L`
+2. **Kirimkan kode tersebut** ke staff atau viewer Anda.
+3. **Staff/Viewer baru** membuka bot Telegram tersebut, menekan `/start`, lalu mengetik perintah:
+   ```text
+   /activate STAFF-7K29Q
+   ```
+4. Bot secara otomatis membaca Chat ID perangkat mereka, memverifikasi kecocokan kode yang belum expired (berlaku 15 menit), lalu mendaftarkannya ke role terkait secara instan.
+5. Owner dapat melihat daftar user aktif dengan `/list_users` dan mencabut akses user runtime lewat `/revoke_user CHAT_ID`.
 
 ---
 
@@ -133,7 +153,8 @@ Coba ketik pesan teks biasa berikut ke chat bot:
 
 ## 6. Catatan Operasional & Deployment Produksi
 * **Running Lokal**: Laporan terjadwal otomatis hanya aktif selama proses `python telegram_bot.py` hidup di terminal Anda. Jika terminal ditutup atau komputer mati/sleep, scheduler tidak berjalan.
-* **Allowed Chat ID**:
-  * Jika `ALLOWED_CHAT_IDS` di berkas `.env` kosong, bot hanya akan mengirimkan laporan terjadwal otomatis ke Chat ID dari user yang mengaktifkannya via `/daily_on` atau `/closing_on`. Chat ID target disimpan sementara secara lokal di `runtime_bot_settings.json` (telah dimasukkan ke `.gitignore`).
-  * Jika `ALLOWED_CHAT_IDS` terisi, hanya Chat ID yang ada di whitelist tersebut yang bisa berinteraksi dengan bot, sedangkan command dari Chat ID lain akan ditolak dengan sopan.
+* **Role Otorisasi & Akses**:
+  * Whitelist data diatur melalui berkas `.env` (`OWNER_CHAT_IDS`, `STAFF_CHAT_IDS`, `VIEWER_CHAT_IDS`) dan secara dinamis via kode aktivasi yang disimpan pada berkas lokal `runtime_bot_settings.json` (telah dimasukkan ke `.gitignore`).
+  * Hanya Chat ID yang terdaftar sebagai owner, staff, atau viewer yang bisa berinteraksi dengan bot. Command dari user lain yang belum diaktifkan akan ditolak dengan pesan instruksi aktivasi.
+  * Laporan harian/closing otomatis hanya dikirimkan ke Chat ID yang aktif dan memiliki otorisasi valid.
 * **Deployment Produksi**: Untuk memastikan bot berjalan 24 jam tanpa henti, deploy aplikasi ke server cloud seperti **VPS** (menggunakan PM2/systemd), **Render**, atau **Railway** sebagai background service/worker. Pastikan untuk memindahkan pengaturan environment variables ke panel platform masing-masing.
